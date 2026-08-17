@@ -50,8 +50,8 @@ const AppHeader: React.FC = () => {
     <header className="sticky top-0 z-40 flex w-full border-b border-gray-200 bg-white/95 backdrop-blur-sm transition-colors dark:border-gray-800 dark:bg-gray-900/95">
       <div className="flex grow flex-col justify-between lg:flex-row lg:items-center lg:px-6">
         {/* Main Action Bar */}
-        <div className="flex w-full items-center justify-between gap-2 px-4 py-3 sm:gap-4 lg:w-auto lg:px-0 lg:py-3.5">
-          {/* Sidebar Toggle Button */}
+        <div className="relative flex w-full items-center justify-between px-4 py-3 sm:gap-4 lg:w-auto lg:px-0 lg:py-3.5">
+          {/* Left: Sidebar Toggle Button */}
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -65,21 +65,23 @@ const AppHeader: React.FC = () => {
                 <Menu className="h-5 w-5" />
               )}
             </button>
+          </div>
 
-            {/* Mobile Logo */}
-            <Link href="/" className="flex items-center lg:hidden">
+          {/* Center: Mobile Logo (Exact Center) */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:hidden">
+            <Link href="/" className="flex items-center">
               <Image
-                width={140}
-                height={30}
-                className="h-auto w-auto dark:hidden"
-                src="/images/logo/logo.svg"
+                width={160}
+                height={35}
+                className="h-8 w-auto object-contain dark:hidden"
+                src="/images/logo/adminHeadLogo.png"
                 alt="Logo"
                 priority
               />
               <Image
                 width={140}
-                height={30}
-                className="hidden h-auto w-auto dark:block"
+                height={35}
+                className="hidden h-8 w-auto object-contain dark:block"
                 src="/images/logo/logo-dark.svg"
                 alt="Logo"
                 priority
@@ -108,7 +110,7 @@ const AppHeader: React.FC = () => {
             </form>
           </div>
 
-          {/* Mobile Right Menu Trigger */}
+          {/* Right: Mobile Menu Trigger */}
           <div className="flex items-center gap-1 lg:hidden">
             <button
               type="button"
