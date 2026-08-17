@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Table,
   TableBody,
@@ -13,92 +13,27 @@ import Badge from "@/components/ui/badge/Badge";
 import Image from "next/image";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 
-interface Product {
-  id: number;
-  name: string;
-  image: string;
-  category: string;
-  brand: string;
-  price: string;
-  stockStatus: "In Stock" | "Out of Stock";
-  createdAt: string;
-}
-
-const productsData: Product[] = [
-  {
-    id: 1,
-    name: "ASUS ROG Gaming Laptop",
-    image: "/images/product/asus-rog.png",
-    category: "Laptop",
-    brand: "ASUS",
-    price: "$2,199",
-    stockStatus: "Out of Stock",
-    createdAt: "01 Dec, 2027",
-  },
-  {
-    id: 2,
-    name: "Airpods Pro 2nd Gen",
-    image: "/images/product/airpods.png",
-    category: "Accessories",
-    brand: "Apple",
-    price: "$839",
-    stockStatus: "In Stock",
-    createdAt: "29 Jun, 2027",
-  },
-  {
-    id: 3,
-    name: "Apple Watch Ultra",
-    image: "/images/product/apple-watch.png",
-    category: "Watch",
-    brand: "Apple",
-    price: "$1,579",
-    stockStatus: "Out of Stock",
-    createdAt: "13 Mar, 2027",
-  },
-  {
-    id: 4,
-    name: "Bose QuietComfort Earbuds",
-    image: "/images/product/bose.png",
-    category: "Audio",
-    brand: "Bose",
-    price: "$279",
-    stockStatus: "In Stock",
-    createdAt: "18 Nov, 2027",
-  },
-  {
-    id: 5,
-    name: "Canon EOS R5 Camera",
-    image: "/images/product/canon.png",
-    category: "Camera",
-    brand: "Canon",
-    price: "$3,899",
-    stockStatus: "In Stock",
-    createdAt: "28 Sep, 2027",
-  },
-  {
-    id: 6,
-    name: "Dell XPS 13 Laptop",
-    image: "/images/product/dell.png",
-    category: "Laptop",
-    brand: "Dell",
-    price: "$1,299",
-    stockStatus: "In Stock",
-    createdAt: "18 Aug, 2027",
-  },
-  {
-    id: 7,
-    name: "Google Pixel 8 Pro",
-    image: "/images/product/pixel.png",
-    category: "Phone",
-    brand: "Google",
-    price: "$899",
-    stockStatus: "Out of Stock",
-    createdAt: "02 Sep, 2027",
-  },
-];
+import { getProducts } from "@/functions/products";
 
 export default function ProductsTable() {
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true);
+        const data = await getProducts();
+        setProducts(data || []);
+      } catch (err) {
+        console.error("Failed to load products", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
 
   // Toggle single row selection
   const handleSelectRow = (id: number) => {
@@ -111,10 +46,10 @@ export default function ProductsTable() {
 
   // Toggle select all rows
   const handleSelectAll = () => {
-    if (selectedItems.length === productsData.length) {
+    if (selectedItems.length === products.length) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(productsData.map((item) => item.id));
+      setSelectedItems(products.map((item) => item.id));
     }
   };
 
@@ -183,7 +118,7 @@ export default function ProductsTable() {
                   <TableCell isHeader className="w-10 px-5 py-3">
                     <input
                       type="checkbox"
-                      checked={selectedItems.length === productsData.length}
+                      checked={products.length > 0 && selectedItems.length === products.length}
                       onChange={handleSelectAll}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
                     />
@@ -201,7 +136,7 @@ export default function ProductsTable() {
                     Price
                   </TableCell>
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-xs dark:text-gray-400">
-                    Stock
+                    Stock Status
                   </TableCell>
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-xs dark:text-gray-400">
                     Created At
@@ -210,54 +145,92 @@ export default function ProductsTable() {
               </TableHeader>
 
               <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-                {productsData.map((product) => (
-                  <TableRow key={product.id} className="hover:bg-gray-50/50 dark:hover:bg-white/[0.02]">
-                    <TableCell className="px-5 py-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.includes(product.id)}
-                        onChange={() => handleSelectRow(product.id)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
-                      />
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-start">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 flex-shrink-0 flex items-center justify-center">
-                          <Image
-                            width={40}
-                            height={40}
-                            src={product.image}
-                            alt={product.name}
-                            className="object-contain w-full h-full p-1"
-                          />
-                        </div>
-                        <span className="font-semibold text-gray-800 text-xs dark:text-white/90">
-                          {product.name}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-gray-500 text-start text-xs dark:text-gray-400">
-                      {product.category}
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-gray-500 text-start text-xs dark:text-gray-400">
-                      {product.brand}
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-gray-800 font-medium text-start text-xs dark:text-gray-200">
-                      {product.price}
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-start">
-                      <Badge
-                        size="sm"
-                        color={product.stockStatus === "In Stock" ? "success" : "error"}
-                      >
-                        {product.stockStatus}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-gray-500 text-start text-xs dark:text-gray-400">
-                      {product.createdAt}
+                {loading ? (
+                  <TableRow>
+                    <TableCell className="px-5 py-8 text-center text-xs text-gray-500">
+                      Loading inventory...
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : products.length === 0 ? (
+                  <TableRow>
+                    <TableCell className="px-5 py-8 text-center text-xs text-gray-500">
+                      No products found. Click &quot;Add Product&quot; to create one.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  products.map((product) => (
+                    <TableRow key={product.id} className="hover:bg-gray-50/50 dark:hover:bg-white/[0.02]">
+                      <TableCell className="px-5 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(product.id)}
+                          onChange={() => handleSelectRow(product.id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
+                        />
+                      </TableCell>
+
+                      {/* Product Image & Name */}
+                      <TableCell className="px-5 py-4 text-start">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 flex-shrink-0 flex items-center justify-center relative">
+                            {product.image_url ? (
+                              <Image
+                                width={40}
+                                height={40}
+                                src={product.image_url}
+                                alt={product.name || "Product Image"}
+                                className="object-contain w-full h-full p-1"
+                              />
+                            ) : (
+                              <span className="text-[10px] text-gray-400">No Img</span>
+                            )}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-800 text-xs block dark:text-white/90">
+                              {product.name}
+                            </span>
+                            {product.custom_product_id && (
+                              <span className="text-[10px] text-gray-400 block">
+                                SKU: {product.custom_product_id}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="px-5 py-4 text-gray-500 text-start text-xs dark:text-gray-400">
+                        {product.category || "—"}
+                      </TableCell>
+
+                      <TableCell className="px-5 py-4 text-gray-500 text-start text-xs dark:text-gray-400">
+                        {product.brand || "—"}
+                      </TableCell>
+
+                      <TableCell className="px-5 py-4 text-gray-800 font-medium text-start text-xs dark:text-gray-200">
+                        ${Number(product.price || 0).toFixed(2)}
+                      </TableCell>
+
+                      <TableCell className="px-5 py-4 text-start">
+                        <Badge
+                          size="sm"
+                          color={product.availability_status === "In Stock" ? "success" : "error"}
+                        >
+                          {product.availability_status || "Out of Stock"}
+                        </Badge>
+                      </TableCell>
+
+                      <TableCell className="px-5 py-4 text-gray-500 text-start text-xs dark:text-gray-400">
+                        {product.created_at
+                          ? new Date(product.created_at).toLocaleDateString("en-US", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -266,24 +239,7 @@ export default function ProductsTable() {
         {/* Table Footer / Pagination */}
         <div className="flex items-center justify-between p-4 border-t border-gray-100 dark:border-white/[0.05] text-xs text-gray-500">
           <div>
-            Showing <span className="font-semibold text-gray-700 dark:text-gray-300">1 to 7</span> of <span className="font-semibold text-gray-700 dark:text-gray-300">20</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <button className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-400 disabled:opacity-50 dark:border-gray-700">
-              &larr;
-            </button>
-            <button className="px-3 py-1.5 bg-blue-600 text-white font-medium rounded-lg">
-              1
-            </button>
-            <button className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg dark:text-gray-400 dark:hover:bg-gray-800">
-              2
-            </button>
-            <button className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg dark:text-gray-400 dark:hover:bg-gray-800">
-              3
-            </button>
-            <button className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 dark:border-gray-700 dark:text-gray-300">
-              &rarr;
-            </button>
+            Showing <span className="font-semibold text-gray-700 dark:text-gray-300">{products.length}</span> entries
           </div>
         </div>
 

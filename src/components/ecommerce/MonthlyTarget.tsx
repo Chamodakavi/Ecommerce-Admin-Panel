@@ -1,206 +1,346 @@
 "use client";
-// import Chart from "react-apexcharts";
-import { ApexOptions } from "apexcharts";
 
+import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { ApexOptions } from "apexcharts";
 import { Dropdown } from "../ui/dropdown/Dropdown";
-import { MoreDotIcon } from "@/icons";
-import { useState } from "react";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
-// Dynamically import the ReactApexChart component
+import {
+  MoreHorizontal,
+  TrendingUp,
+  TrendingDown,
+  Car,
+  Loader2,
+  Calendar,
+  Clock,
+} from "lucide-react";
+import { createClient } from "@/utils/supabase/client";
+
+// Dynamically import ReactApexChart to prevent SSR hydration mismatches
 const ReactApexChart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
 });
 
-export default function MonthlyTarget() {
-  const series = [75.55];
+const supabase = createClient();
+
+type ViewMode = "monthly" | "daily";
+
+export default function MonthlySales() {
+  const [viewMode, setViewMode] = useState<ViewMode>("monthly");
+
+  // Metrics Data
+  const [currentTotal, setCurrentTotal] = useState<number>(0);
+  const [previousTotal, setPreviousTotal] = useState<number>(0);
+  const [invoiceCount, setInvoiceCount] = useState<number>(0);
+  const [percentageGrowth, setPercentageGrowth] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    fetchSalesData();
+  }, [viewMode]);
+
+  const fetchSalesData = async () => {
+    try {
+      setLoading(true);
+
+      const now = new Date();
+      let startCurrent: string;
+      let endCurrent: string;
+      let startPrevious: string;
+      let endPrevious: string;
+
+      if (viewMode === "monthly") {
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+
+        startCurrent = new Date(currentYear, currentMonth, 1).toISOString();
+        endCurrent = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59).toISOString();
+
+        startPrevious = new Date(currentYear, currentMonth - 1, 1).toISOString();
+        endPrevious = new Date(currentYear, currentMonth, 0, 23, 59, 59).toISOString();
+      } else {
+        // Daily: Today vs Yesterday
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+        const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
+        const yesterdayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
+
+        startCurrent = todayStart.toISOString();
+        endCurrent = todayEnd.toISOString();
+        startPrevious = yesterdayStart.toISOString();
+        endPrevious = yesterdayEnd.toISOString();
+      }
+
+      // Fetch from Supabase
+      const { data: currentInvoices, error: currentErr } = await supabase
+        .from("invoices")
+        .select("grand_total, created_at")
+        .gte("created_at", startCurrent)
+        .lte("created_at", endCurrent);
+
+      const { data: previousInvoices, error: prevErr } = await supabase
+        .from("invoices")
+        .select("grand_total, created_at")
+        .gte("created_at", startPrevious)
+        .lte("created_at", endPrevious);
+
+      if (currentErr) throw currentErr;
+      if (prevErr) throw prevErr;
+
+      const currentRev = (currentInvoices || []).reduce(
+        (sum, item) => sum + (Number(item.grand_total) || 0),
+        0
+      );
+
+      const prevRev = (previousInvoices || []).reduce(
+        (sum, item) => sum + (Number(item.grand_total) || 0),
+        0
+      );
+
+      // Percentage calculation
+      let growth = 0;
+      if (prevRev > 0) {
+        growth = Number((((currentRev - prevRev) / prevRev) * 100).toFixed(1));
+      } else if (currentRev > 0) {
+        growth = 100;
+      }
+
+      setCurrentTotal(currentRev);
+      setPreviousTotal(prevRev);
+      setInvoiceCount(currentInvoices?.length || 0);
+      setPercentageGrowth(growth);
+    } catch (err: any) {
+      console.error("Error loading sales metrics:", err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Radial chart percentage configuration
+  const chartValue = Math.min(100, Math.max(0, percentageGrowth > 0 ? percentageGrowth : 50));
+  const series = [chartValue];
+
   const options: ApexOptions = {
-    colors: ["#465FFF"],
+    colors: ["#3B82F6"],
     chart: {
       fontFamily: "Outfit, sans-serif",
       type: "radialBar",
-      height: 330,
+      height: 300,
       sparkline: {
         enabled: true,
       },
     },
     plotOptions: {
       radialBar: {
-        startAngle: -85,
-        endAngle: 85,
+        startAngle: -90,
+        endAngle: 90,
         hollow: {
-          size: "80%",
+          size: "75%",
         },
         track: {
           background: "#E4E7EC",
           strokeWidth: "100%",
-          margin: 5, // margin is in pixels
+          margin: 5,
         },
         dataLabels: {
           name: {
             show: false,
           },
           value: {
-            fontSize: "36px",
-            fontWeight: "600",
-            offsetY: -40,
+            fontSize: "28px",
+            fontWeight: "700",
+            offsetY: -35,
             color: "#1D2939",
-            formatter: function (val) {
-              return val + "%";
+            formatter: function () {
+              return currentTotal >= 1000
+                ? `$${(currentTotal / 1000).toFixed(1)}K`
+                : `$${currentTotal.toFixed(0)}`;
             },
           },
         },
       },
     },
     fill: {
-      type: "solid",
-      colors: ["#465FFF"],
+      type: "gradient",
+      gradient: {
+        shade: "dark",
+        type: "horizontal",
+        shadeIntensity: 0.5,
+        gradientToColors: ["#2563EB"],
+        inverseColors: true,
+        opacityFrom: 1,
+        opacityTo: 1,
+        stops: [0, 100],
+      },
     },
     stroke: {
       lineCap: "round",
     },
-    labels: ["Progress"],
+    labels: [viewMode === "monthly" ? "Monthly Total" : "Today's Total"],
   };
-
-  const [isOpen, setIsOpen] = useState(false);
-
-  function toggleDropdown() {
-    setIsOpen(!isOpen);
-  }
-
-  function closeDropdown() {
-    setIsOpen(false);
-  }
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-white/[0.03]">
-      <div className="px-5 pt-5 bg-white shadow-default rounded-2xl pb-11 dark:bg-gray-900 sm:px-6 sm:pt-6">
-        <div className="flex justify-between">
+      <div className="rounded-2xl bg-white px-5 pb-8 pt-5 shadow-default dark:bg-gray-900 sm:px-6 sm:pt-6">
+        
+        {/* Header & Toggle Controls */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-              Monthly Target
+              {viewMode === "monthly" ? "Monthly Sales" : "Daily Sales"} Performance
             </h3>
-            <p className="mt-1 font-normal text-gray-500 text-theme-sm dark:text-gray-400">
-              Target you’ve set for each month
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {viewMode === "monthly"
+                ? "Total invoiced revenue for this month"
+                : "Real-time earnings generated today"}
             </p>
           </div>
-          <div className="relative inline-block">
-            <button onClick={toggleDropdown} className="dropdown-toggle">
-              <MoreDotIcon className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" />
-            </button>
-            <Dropdown
-              isOpen={isOpen}
-              onClose={closeDropdown}
-              className="w-40 p-2"
-            >
-              <DropdownItem
-                tag="a"
-                onItemClick={closeDropdown}
-                className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-              >
-                View More
-              </DropdownItem>
-              <DropdownItem
-                tag="a"
-                onItemClick={closeDropdown}
-                className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-              >
-                Delete
-              </DropdownItem>
-            </Dropdown>
-          </div>
-        </div>
-        <div className="relative ">
-          <div className="max-h-[330px]">
-            <ReactApexChart
-              options={options}
-              series={series}
-              type="radialBar"
-              height={330}
-            />
-          </div>
 
-          <span className="absolute left-1/2 top-full -translate-x-1/2 -translate-y-[95%] rounded-full bg-success-50 px-3 py-1 text-xs font-medium text-success-600 dark:bg-success-500/15 dark:text-success-500">
-            +10%
-          </span>
+          {/* Toggle Button & Dropdown */}
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+              <button
+                onClick={() => setViewMode("daily")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition ${
+                  viewMode === "daily"
+                    ? "bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-white"
+                    : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                }`}
+              >
+                <Clock className="h-3 w-3" />
+                Daily
+              </button>
+              <button
+                onClick={() => setViewMode("monthly")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition ${
+                  viewMode === "monthly"
+                    ? "bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-white"
+                    : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                }`}
+              >
+                <Calendar className="h-3 w-3" />
+                Monthly
+              </button>
+            </div>
+
+            <div className="relative inline-block">
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+              >
+                <MoreHorizontal className="h-5 w-5" />
+              </button>
+              <Dropdown
+                isOpen={isOpen}
+                onClose={() => setIsOpen(false)}
+                className="w-40 p-2"
+              >
+                <DropdownItem
+                  tag="a"
+                  onItemClick={() => {
+                    setIsOpen(false);
+                    fetchSalesData();
+                  }}
+                  className="flex w-full rounded-lg text-left text-xs font-normal text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
+                >
+                  Refresh Data
+                </DropdownItem>
+              </Dropdown>
+            </div>
+          </div>
         </div>
-        <p className="mx-auto mt-10 w-full max-w-[380px] text-center text-sm text-gray-500 sm:text-base">
-          You earn $3287 today, it&apos;s higher than last month. Keep up your
-          good work!
-        </p>
+
+        {/* Apex Chart & Growth Badge */}
+        {loading ? (
+          <div className="flex h-[260px] items-center justify-center text-xs text-gray-400">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin text-blue-600" />
+            Loading actual {viewMode} figures...
+          </div>
+        ) : (
+          <>
+            <div className="relative mt-2">
+              <div className="max-h-[300px]">
+                <ReactApexChart
+                  options={options}
+                  series={series}
+                  type="radialBar"
+                  height={300}
+                />
+              </div>
+
+              <div className="absolute left-1/2 top-full -translate-x-1/2 -translate-y-[110%]">
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                    percentageGrowth >= 0
+                      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"
+                      : "bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-400"
+                  }`}
+                >
+                  {percentageGrowth >= 0 ? (
+                    <TrendingUp className="h-3.5 w-3.5" />
+                  ) : (
+                    <TrendingDown className="h-3.5 w-3.5" />
+                  )}
+                  {percentageGrowth >= 0 ? `+${percentageGrowth}%` : `${percentageGrowth}%`} vs{" "}
+                  {viewMode === "monthly" ? "Last Month" : "Yesterday"}
+                </span>
+              </div>
+            </div>
+
+            {/* Summary Text */}
+            <p className="mx-auto mt-6 max-w-[340px] text-center text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
+              Total {viewMode === "monthly" ? "month" : "day"} earnings:{" "}
+              <strong className="text-gray-800 dark:text-white">
+                ${currentTotal.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </strong>
+            </p>
+          </>
+        )}
       </div>
 
-      <div className="flex items-center justify-center gap-5 px-6 py-3.5 sm:gap-8 sm:py-5">
-        <div>
-          <p className="mb-1 text-center text-gray-500 text-theme-xs dark:text-gray-400 sm:text-sm">
-            Target
+      {/* Footer Comparison Cards */}
+      <div className="flex items-center justify-around px-4 py-4 sm:px-6">
+        {/* Current Period */}
+        <div className="text-center">
+          <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+            {viewMode === "monthly" ? "This Month" : "Today"}
           </p>
-          <p className="flex items-center justify-center gap-1 text-base font-semibold text-gray-800 dark:text-white/90 sm:text-lg">
-            $20K
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M7.26816 13.6632C7.4056 13.8192 7.60686 13.9176 7.8311 13.9176C7.83148 13.9176 7.83187 13.9176 7.83226 13.9176C8.02445 13.9178 8.21671 13.8447 8.36339 13.6981L12.3635 9.70076C12.6565 9.40797 12.6567 8.9331 12.3639 8.6401C12.0711 8.34711 11.5962 8.34694 11.3032 8.63973L8.5811 11.36L8.5811 2.5C8.5811 2.08579 8.24531 1.75 7.8311 1.75C7.41688 1.75 7.0811 2.08579 7.0811 2.5L7.0811 11.3556L4.36354 8.63975C4.07055 8.34695 3.59568 8.3471 3.30288 8.64009C3.01008 8.93307 3.01023 9.40794 3.30321 9.70075L7.26816 13.6632Z"
-                fill="#D92D20"
-              />
-            </svg>
+          <p className="flex items-center justify-center gap-1 text-sm font-bold text-gray-800 dark:text-white sm:text-base">
+            {currentTotal >= 1000
+              ? `$${(currentTotal / 1000).toFixed(1)}K`
+              : `$${currentTotal.toFixed(0)}`}
           </p>
         </div>
 
-        <div className="w-px bg-gray-200 h-7 dark:bg-gray-800"></div>
+        <div className="h-7 w-px bg-gray-200 dark:bg-gray-800"></div>
 
-        <div>
-          <p className="mb-1 text-center text-gray-500 text-theme-xs dark:text-gray-400 sm:text-sm">
-            Revenue
+        {/* Previous Period */}
+        <div className="text-center">
+          <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+            {viewMode === "monthly" ? "Last Month" : "Yesterday"}
           </p>
-          <p className="flex items-center justify-center gap-1 text-base font-semibold text-gray-800 dark:text-white/90 sm:text-lg">
-            $20K
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M7.60141 2.33683C7.73885 2.18084 7.9401 2.08243 8.16435 2.08243C8.16475 2.08243 8.16516 2.08243 8.16556 2.08243C8.35773 2.08219 8.54998 2.15535 8.69664 2.30191L12.6968 6.29924C12.9898 6.59203 12.9899 7.0669 12.6971 7.3599C12.4044 7.6529 11.9295 7.65306 11.6365 7.36027L8.91435 4.64004L8.91435 13.5C8.91435 13.9142 8.57856 14.25 8.16435 14.25C7.75013 14.25 7.41435 13.9142 7.41435 13.5L7.41435 4.64442L4.69679 7.36025C4.4038 7.65305 3.92893 7.6529 3.63613 7.35992C3.34333 7.06693 3.34348 6.59206 3.63646 6.29926L7.60141 2.33683Z"
-                fill="#039855"
-              />
-            </svg>
+          <p className="flex items-center justify-center gap-1 text-sm font-bold text-gray-800 dark:text-white sm:text-base">
+            {previousTotal >= 1000
+              ? `$${(previousTotal / 1000).toFixed(1)}K`
+              : `$${previousTotal.toFixed(0)}`}
           </p>
         </div>
 
-        <div className="w-px bg-gray-200 h-7 dark:bg-gray-800"></div>
+        <div className="h-7 w-px bg-gray-200 dark:bg-gray-800"></div>
 
-        <div>
-          <p className="mb-1 text-center text-gray-500 text-theme-xs dark:text-gray-400 sm:text-sm">
-            Today
+        {/* Invoice Units */}
+        <div className="text-center">
+          <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+            Invoices
           </p>
-          <p className="flex items-center justify-center gap-1 text-base font-semibold text-gray-800 dark:text-white/90 sm:text-lg">
-            $20K
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M7.60141 2.33683C7.73885 2.18084 7.9401 2.08243 8.16435 2.08243C8.16475 2.08243 8.16516 2.08243 8.16556 2.08243C8.35773 2.08219 8.54998 2.15535 8.69664 2.30191L12.6968 6.29924C12.9898 6.59203 12.9899 7.0669 12.6971 7.3599C12.4044 7.6529 11.9295 7.65306 11.6365 7.36027L8.91435 4.64004L8.91435 13.5C8.91435 13.9142 8.57856 14.25 8.16435 14.25C7.75013 14.25 7.41435 13.9142 7.41435 13.5L7.41435 4.64442L4.69679 7.36025C4.4038 7.65305 3.92893 7.6529 3.63613 7.35992C3.34333 7.06693 3.34348 6.59206 3.63646 6.29926L7.60141 2.33683Z"
-                fill="#039855"
-              />
-            </svg>
+          <p className="flex items-center justify-center gap-1 text-sm font-bold text-gray-800 dark:text-white sm:text-base">
+            {invoiceCount}
+            <Car className="h-3.5 w-3.5 text-indigo-500" />
           </p>
         </div>
       </div>

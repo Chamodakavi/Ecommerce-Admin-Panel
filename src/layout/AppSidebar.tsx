@@ -17,7 +17,7 @@ import {
   TableIcon,
   UserCircleIcon,
 } from "../icons/index";
-import SidebarWidget from "./SidebarWidget";
+import { Ship, FileText, TrendingUp } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -30,7 +30,7 @@ const navItems: NavItem[] = [
   {
     icon: <GridIcon />,
     name: "Dashboard",
-    subItems: [{ name: "Ecommerce", path: "/", pro: false }],
+    path: "/",
   },
   {
     icon: <BoxCubeIcon />,
@@ -40,58 +40,57 @@ const navItems: NavItem[] = [
       { name: "Add Product", path: "/add-product", pro: false },
     ],
   },
+    {
+    icon: <Ship />,
+    name: "My Orders",
+    subItems: [
+      { name: "Orders", path: "/orders", pro: false },
+      { name: "Shipped Orders", path: "/orders/shippedOrders", pro: false },
+    ],
+  },
+    {
+    icon: <FileText />,
+    name: "Invoice Management",
+    subItems: [
+      { name: "Create Invoice", path: "/invoice", pro: false },
+      { name: "Billed Invoices", path: "/invoice/billed", pro: false },
+    ],
+  },
+     {
+    icon: <TrendingUp />,
+    name: "Sales Analytics",
+    subItems: [
+      { name: "Daily Sales Analytics", path: "/sales/daily", pro: false },
+      { name: "Monthly Sales Analytics", path: "/sales/monthly", pro: false },
+    ],
+  },
+
+   {
+    icon: <UserCircleIcon />,
+    name: "Profiles",
+    subItems: [
+      { name: "My Profile", path: "/profile", pro: false },
+      { name: "Co Worker Profile", path: "/profile/co-workers", pro: false },
+      { name: "Web Profile", path: "/web-profile", pro: false },
+    ],
+  },
   {
     icon: <CalenderIcon />,
     name: "Calendar",
     path: "/calendar",
   },
-  {
-    icon: <UserCircleIcon />,
-    name: "User Profile",
-    path: "/profile",
-  },
-
-  {
-    name: "Forms",
-    icon: <ListIcon />,
-    subItems: [{ name: "Form Elements", path: "/form-elements", pro: false }],
-  },
-  {
-    name: "Tables",
-    icon: <TableIcon />,
-    subItems: [{ name: "Basic Tables", path: "/basic-tables", pro: false }],
-  },
-  {
-    name: "Pages",
-    icon: <PageIcon />,
-    subItems: [
-      { name: "Blank Page", path: "/blank", pro: false },
-      { name: "404 Error", path: "/error-404", pro: false },
-    ],
+   {
+    icon: <CalenderIcon />,
+    name: "My Customers",
+    path: "/customer",
   },
 ];
 
+
+
+
+// other items
 const othersItems: NavItem[] = [
-  {
-    icon: <PieChartIcon />,
-    name: "Charts",
-    subItems: [
-      { name: "Line Chart", path: "/line-chart", pro: false },
-      { name: "Bar Chart", path: "/bar-chart", pro: false },
-    ],
-  },
-  {
-    icon: <BoxCubeIcon />,
-    name: "UI Elements",
-    subItems: [
-      { name: "Alerts", path: "/alerts", pro: false },
-      { name: "Avatar", path: "/avatars", pro: false },
-      { name: "Badge", path: "/badge", pro: false },
-      { name: "Buttons", path: "/buttons", pro: false },
-      { name: "Images", path: "/images", pro: false },
-      { name: "Videos", path: "/videos", pro: false },
-    ],
-  },
   {
     icon: <PlugInIcon />,
     name: "Authentication",
@@ -382,7 +381,7 @@ const AppSidebar: React.FC = () => {
             </div>
           </div>
         </nav>
-        {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}
+      
       </div>
     </aside>
   );

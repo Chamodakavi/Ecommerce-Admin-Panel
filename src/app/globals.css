@@ -167,6 +167,7 @@
   --z-index-999999: 999999;
 }
 
+
 /*
   The default border color has changed to `currentColor` in Tailwind CSS v4,
   so we've added these compatibility styles to make sure everything still
@@ -749,4 +750,25 @@ span.flatpickr-weekday,
     0 1px 2px 0 rgba(16, 24, 40, 0.06);
   opacity: 0.8;
   cursor: grabbing; /* Changes the cursor to indicate dragging */
+}
+
+
+/* Add/Replace this at the bottom of your CSS file */
+
+iframe[src*="cloudinary.com"],
+#cloudinary-overlay,
+.cloudinary-widget,
+div[id^="cloudinary"] {
+  z-index: 999999 !important;
+  pointer-events: auto !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+/* Fix mobile Safari backdrops swallowing touch gestures */
+#cloudinary-overlay {
+  touch-action: manipulation !important;
 }
