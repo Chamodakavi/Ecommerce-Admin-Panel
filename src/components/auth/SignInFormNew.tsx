@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
-import { authenticateOwner } from "@/functions/profile";
+import { authenticateUser } from "@/functions/auth";
 import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 
 export default function SignInForm() {
@@ -16,31 +16,37 @@ export default function SignInForm() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setErrorMessage(null);
 
-    if (!email.trim() || !password.trim()) {
-      setErrorMessage("Please enter both your email and password.");
-      return;
+  if (!email.trim() || !password.trim()) {
+    setErrorMessage("Please enter both email and password.");
+    return;
+  }
+
+  try {
+    setLoading(true);
+    const sessionUser = await authenticateUser(email, password);
+
+    if (typeof window !== "undefined") {
+      // 1. Save local state
+      localStorage.setItem("user_session", JSON.stringify(sessionUser));
+
+      // 2. Set cookie for Next.js middleware (7 days lifespan)
+      document.cookie = `user_session=${encodeURIComponent(
+        JSON.stringify(sessionUser)
+      )}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
     }
 
-    try {
-      setLoading(true);
-      const user = await authenticateOwner(email, password);
-
-      // Save user session in localStorage / cookies
-      if (typeof window !== "undefined") {
-        localStorage.setItem("owner_session", JSON.stringify(user));
-      }
-
-      router.push("/dashboard");
-    } catch (err: any) {
-      setErrorMessage(err.message || "Failed to sign in. Please verify your credentials.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    // 3. Navigate to dashboard
+    window.location.replace("/dashboard");
+  } catch (err: any) {
+    setErrorMessage(err.message || "Invalid credentials.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="flex flex-1 flex-col w-full lg:w-1/2">
@@ -52,7 +58,7 @@ export default function SignInForm() {
               Sign In
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Enter your email and password to sign in!
+              Enter your email and password to access the portal.
             </p>
           </div>
 
@@ -68,10 +74,10 @@ export default function SignInForm() {
               <div className="space-y-5">
                 <div>
                   <Label>
-                    Email <span className="text-error-500">*</span>
+                    Email Address <span className="text-error-500">*</span>
                   </Label>
                   <Input
-                    placeholder="e.g. owner@premierautohub.com"
+                    placeholder="Enter your registered email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -115,10 +121,10 @@ export default function SignInForm() {
                     {loading ? (
                       <span className="flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Signing in...
+                        Verifying credentials...
                       </span>
                     ) : (
-                      "Sign in"
+                      "Sign In"
                     )}
                   </Button>
                 </div>
