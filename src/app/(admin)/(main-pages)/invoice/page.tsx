@@ -30,6 +30,14 @@ interface CustomerOption {
   email: string | null;
 }
 
+// Allow quantity and unitPrice to be empty string for clean placeholders
+interface FormInvoiceItem {
+  id?: string;
+  name: string;
+  quantity: number | "";
+  unitPrice: number | "";
+}
+
 export default function GenerateInvoicePage() {
   const [isSaving, setIsSaving] = useState(false);
 
@@ -51,12 +59,13 @@ export default function GenerateInvoicePage() {
   const [paymentStatus, setPaymentStatus] = useState<
     "Paid" | "Unpaid" | "Partial"
   >("Unpaid");
-  const [paidAmount, setPaidAmount] = useState<number>(0);
-  const [taxRate, setTaxRate] = useState<number>(0);
-  const [discount, setDiscount] = useState<number>(0);
+  const [paidAmount, setPaidAmount] = useState<number | "">("");
+  const [taxRate, setTaxRate] = useState<number | "">("");
+  const [discount, setDiscount] = useState<number | "">("");
 
-  const [items, setItems] = useState<InvoiceItemData[]>([
-    { id: "1", name: "", quantity: 1, unitPrice: 0 },
+  // Items initialized with empty string values to show placeholders
+  const [items, setItems] = useState<FormInvoiceItem[]>([
+    { id: "1", name: "", quantity: "", unitPrice: "" },
   ]);
 
   // Autocomplete States
@@ -141,24 +150,28 @@ export default function GenerateInvoicePage() {
     };
   }, []);
 
-  // Calculation logic
+  // Safe numerical calculations
+  const numTaxRate = Number(taxRate) || 0;
+  const numDiscount = Number(discount) || 0;
+  const numPaidAmount = Number(paidAmount) || 0;
+
   const subtotal = items.reduce(
-    (sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0),
+    (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
     0
   );
-  const taxAmount = (subtotal * (taxRate || 0)) / 100;
-  const grandTotal = Math.max(0, subtotal + taxAmount - (discount || 0));
+  const taxAmount = (subtotal * numTaxRate) / 100;
+  const grandTotal = Math.max(0, subtotal + taxAmount - numDiscount);
   const remainingBalance =
     paymentStatus === "Paid"
       ? 0
       : paymentStatus === "Unpaid"
       ? grandTotal
-      : Math.max(0, grandTotal - (paidAmount || 0));
+      : Math.max(0, grandTotal - numPaidAmount);
 
   const handleAddItem = () => {
     setItems([
       ...items,
-      { id: Date.now().toString(), name: "", quantity: 1, unitPrice: 0 },
+      { id: Date.now().toString(), name: "", quantity: "", unitPrice: "" },
     ]);
   };
 
@@ -170,11 +183,25 @@ export default function GenerateInvoicePage() {
 
   const handleItemChange = (
     id: string | undefined,
-    field: keyof InvoiceItemData,
-    value: string | number
+    field: keyof FormInvoiceItem,
+    value: string
   ) => {
     setItems(
-      items.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+      items.map((item) => {
+        if (item.id !== id) return item;
+
+        if (field === "name") {
+          return { ...item, name: value };
+        }
+
+        // Keep empty string if user clears the input
+        if (value === "") {
+          return { ...item, [field]: "" };
+        }
+
+        const parsed = parseFloat(value);
+        return { ...item, [field]: isNaN(parsed) ? "" : parsed };
+      })
     );
   };
 
@@ -188,17 +215,25 @@ export default function GenerateInvoicePage() {
       ? `${customerName.trim()} (${customerCompany.trim()})`
       : customerName.trim();
 
+    // Map items to strict numeric InvoiceItemData format
+    const formattedItems: InvoiceItemData[] = items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      quantity: Number(item.quantity) || 0,
+      unitPrice: Number(item.unitPrice) || 0,
+    }));
+
     const payload: InvoicePDFPayload = {
       invoiceNumber,
       invoiceDate,
       customerName: formattedCustomerName,
       customerEmail,
       customerPhone,
-      items,
+      items: formattedItems,
       paymentStatus,
-      paidAmount,
-      taxRate,
-      discount,
+      paidAmount: numPaidAmount,
+      taxRate: numTaxRate,
+      discount: numDiscount,
       subtotal,
       taxAmount,
       grandTotal,
@@ -253,7 +288,7 @@ export default function GenerateInvoicePage() {
           <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-5 dark:border-gray-800 dark:bg-gray-900/40">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-xl font-semibold text-gray-900 dark:text-white">
-                <User className="h-4 w-4 text-blue-600" />
+                <User className="hidden md:block h-4 w-4 text-blue-600" />
                 Customer Information
               </h3>
 
@@ -267,7 +302,7 @@ export default function GenerateInvoicePage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
               {/* Customer Name Autocomplete */}
               <div className="relative" ref={nameInputRef}>
                 <label className="mb-1 block text-md text-gray-500 dark:text-gray-400">
@@ -454,15 +489,12 @@ export default function GenerateInvoicePage() {
                         <input
                           type="number"
                           min="1"
+                          placeholder="Qty"
                           value={item.quantity}
                           onChange={(e) =>
-                            handleItemChange(
-                              item.id,
-                              "quantity",
-                              parseFloat(e.target.value) || 0
-                            )
+                            handleItemChange(item.id, "quantity", e.target.value)
                           }
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-md focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-md placeholder-gray-400 focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder-gray-600"
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -470,19 +502,16 @@ export default function GenerateInvoicePage() {
                           type="number"
                           min="0"
                           step="0.01"
+                          placeholder="0.00"
                           value={item.unitPrice}
                           onChange={(e) =>
-                            handleItemChange(
-                              item.id,
-                              "unitPrice",
-                              parseFloat(e.target.value) || 0
-                            )
+                            handleItemChange(item.id, "unitPrice", e.target.value)
                           }
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-md focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-md placeholder-gray-400 focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder-gray-600"
                         />
                       </td>
                       <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">
-                        ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
+                        ${((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)).toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button
@@ -546,11 +575,14 @@ export default function GenerateInvoicePage() {
                     type="number"
                     min="0"
                     step="0.01"
+                    placeholder="0.00"
                     value={paidAmount}
                     onChange={(e) =>
-                      setPaidAmount(parseFloat(e.target.value) || 0)
+                      setPaidAmount(
+                        e.target.value === "" ? "" : parseFloat(e.target.value) || 0
+                      )
                     }
-                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-md focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-md placeholder-gray-400 focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-600"
                   />
                 </div>
               )}
@@ -569,9 +601,14 @@ export default function GenerateInvoicePage() {
                 <input
                   type="number"
                   min="0"
+                  placeholder="0"
                   value={taxRate}
-                  onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-                  className="w-20 rounded border border-gray-200 bg-white px-2 py-1 text-right text-md focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  onChange={(e) =>
+                    setTaxRate(
+                      e.target.value === "" ? "" : parseFloat(e.target.value) || 0
+                    )
+                  }
+                  className="w-20 rounded border border-gray-200 bg-white px-2 py-1 text-right text-md placeholder-gray-400 focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder-gray-600"
                 />
               </div>
 
@@ -580,9 +617,14 @@ export default function GenerateInvoicePage() {
                 <input
                   type="number"
                   min="0"
+                  placeholder="0.00"
                   value={discount}
-                  onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                  className="w-24 rounded border border-gray-200 bg-white px-2 py-1 text-right text-md focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  onChange={(e) =>
+                    setDiscount(
+                      e.target.value === "" ? "" : parseFloat(e.target.value) || 0
+                    )
+                  }
+                  className="w-24 rounded border border-gray-200 bg-white px-2 py-1 text-right text-md placeholder-gray-400 focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder-gray-600"
                 />
               </div>
 

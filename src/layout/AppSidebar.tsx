@@ -17,7 +17,7 @@ import {
   TableIcon,
   UserCircleIcon,
 } from "../icons/index";
-import { Ship, FileText, TrendingUp } from "lucide-react";
+import { Ship, FileText, TrendingUp, Users } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -80,7 +80,7 @@ const navItems: NavItem[] = [
     path: "/calendar",
   },
    {
-    icon: <CalenderIcon />,
+    icon: <Users />,
     name: "My Customers",
     path: "/customer",
   },

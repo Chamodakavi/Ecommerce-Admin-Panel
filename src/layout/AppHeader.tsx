@@ -82,7 +82,7 @@ const AppHeader: React.FC = () => {
                 width={140}
                 height={35}
                 className="hidden h-8 w-auto object-contain dark:block"
-                src="/images/logo/logo-dark.svg"
+                src="/images/logo/adminHeadLogoDark.png"
                 alt="Logo"
                 priority
               />
