@@ -17,43 +17,22 @@ import {
   RefreshCw,
   AlertCircle,
   FileText,
+  Trash2,
 } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
-import { updateOrderStatus, OrderStatus } from "@/functions/orders";
+import {
+  getAllOrders,
+  updateOrderStatus,
+  deleteOrder,
+  OrderRecord,
+  OrderStatus,
+} from "@/functions/orders";
 import { createInvoice } from "@/functions/invoices";
-
-const supabase = createClient();
-
-interface OrderItem {
-  name: string;
-  quantity: number;
-  price: number;
-}
-
-interface OrderRecord {
-  id: string;
-  order_number: string;
-  customer_name: string;
-  customer_email: string | null;
-  customer_phone: string | null;
-  shipping_address: string;
-  items: OrderItem[];
-  subtotal: number;
-  delivery_fee: number;
-  discount: number;
-  total_amount: number;
-  payment_method: string;
-  payment_status: string;
-  order_status: OrderStatus;
-  notes: string | null;
-  created_at: string;
-}
 
 export default function MyOrdersPage() {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("" );
   const [statusFilter, setStatusFilter] = useState<string>("All");
 
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
@@ -67,17 +46,11 @@ export default function MyOrdersPage() {
     try {
       setLoading(true);
       setErrorMessage(null);
-
-      const { data, error } = await supabase
-        .from("orders")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
+      const data = await getAllOrders();
       setOrders(data || []);
     } catch (err: any) {
       console.error("Error fetching orders:", err);
-      setErrorMessage(err.message || "Failed to load orders from Supabase.");
+      setErrorMessage(err.message || "Failed to load orders from database.");
     } finally {
       setLoading(false);
     }
@@ -99,23 +72,11 @@ export default function MyOrdersPage() {
     });
   }, [orders, searchQuery, statusFilter]);
 
-  // Helper to auto-create invoice when marking as shipped
+  // Helper to auto-create invoice when an order is marked as shipped
   const generateInvoiceForOrder = async (order: OrderRecord) => {
     try {
       const generatedInvoiceNumber = `INV-${order.order_number.replace(/^ORD-?/i, "")}`;
 
-      // 1. Check if invoice already exists for this order to prevent duplicates
-      const { data: existingInv } = await supabase
-        .from("invoices")
-        .select("id")
-        .eq("invoice_number", generatedInvoiceNumber)
-        .maybeSingle();
-
-      if (existingInv) {
-        return; // Invoice already generated earlier
-      }
-
-      // 2. Map order items to invoice line items format
       const invoiceItems = (order.items || []).map((item, idx) => ({
         id: (idx + 1).toString(),
         name: item.name,
@@ -123,7 +84,6 @@ export default function MyOrdersPage() {
         unitPrice: Number(item.price) || 0,
       }));
 
-      // Add delivery fee as line item if applicable
       if (Number(order.delivery_fee) > 0) {
         invoiceItems.push({
           id: (invoiceItems.length + 1).toString(),
@@ -136,7 +96,6 @@ export default function MyOrdersPage() {
       const isPaid = order.payment_status?.toLowerCase() === "paid";
       const total = Number(order.total_amount) || 0;
 
-      // 3. Save into invoices table using existing helper function
       await createInvoice({
         invoiceNumber: generatedInvoiceNumber,
         invoiceDate: new Date().toISOString().split("T")[0],
@@ -164,7 +123,6 @@ export default function MyOrdersPage() {
       setIsUpdatingStatus(true);
       await updateOrderStatus(selectedOrder.id, newStatus);
 
-      // Automatically generate invoice if transitioning to "shipped"
       if (newStatus === "shipped") {
         await generateInvoiceForOrder(selectedOrder);
       }
@@ -176,6 +134,21 @@ export default function MyOrdersPage() {
       );
     } catch (err: any) {
       alert("Failed to update status: " + err.message);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: string) => {
+    if (!confirm("Are you sure you want to delete this order?")) return;
+    try {
+      setIsUpdatingStatus(true);
+      await deleteOrder(orderId);
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setSelectedOrder(null);
+      alert("Order deleted successfully.");
+    } catch (err: any) {
+      alert("Failed to delete order: " + err.message);
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -275,6 +248,7 @@ export default function MyOrdersPage() {
                   <option value="packed">Packed</option>
                   <option value="shipped">Shipped</option>
                   <option value="delivered">Delivered</option>
+                  <option value="cancelled">Cancelled</option>
                 </select>
               </div>
             </div>
@@ -346,7 +320,7 @@ export default function MyOrdersPage() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="font-medium text-gray-700 dark:text-gray-300">
-                        {order.payment_method}
+                        {order.payment_method || "Cash on Delivery"}
                       </div>
                       <span
                         className={`text-[10px] font-semibold ${
@@ -355,7 +329,7 @@ export default function MyOrdersPage() {
                             : "text-amber-600 dark:text-amber-400"
                         }`}
                       >
-                        {order.payment_status}
+                        {order.payment_status || "Pending"}
                       </span>
                     </td>
                     <td className="px-5 py-4">{getStatusBadge(order.order_status)}</td>
@@ -367,7 +341,7 @@ export default function MyOrdersPage() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Order Details & Workflow Modal */}
       {selectedOrder && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
           <div className="relative w-full max-w-2xl rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-800 dark:bg-gray-900">
@@ -428,6 +402,11 @@ export default function MyOrdersPage() {
                     <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
                     {selectedOrder.shipping_address}
                   </p>
+                  {selectedOrder.notes && (
+                    <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-400">
+                      <strong>Note:</strong> {selectedOrder.notes}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -475,7 +454,7 @@ export default function MyOrdersPage() {
                   </div>
                   <div className="flex justify-between text-gray-500">
                     <span>Delivery Fee:</span>
-                    <span>LKR {Number(selectedOrder.delivery_fee).toFixed(2)}</span>
+                    <span>LKR {Number(selectedOrder.delivery_fee || 0).toFixed(2)}</span>
                   </div>
                   {Number(selectedOrder.discount) > 0 && (
                     <div className="flex justify-between text-emerald-600">
@@ -490,6 +469,7 @@ export default function MyOrdersPage() {
                 </div>
               </div>
 
+              {/* Status Update Progression */}
               <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                 <div className="mb-2 flex items-center justify-between">
                   <h4 className="font-semibold text-gray-900 dark:text-white">
@@ -540,11 +520,34 @@ export default function MyOrdersPage() {
                     <Truck className="h-3.5 w-3.5" />
                     3. Mark Shipped & Generate Invoice
                   </button>
+
+                  <button
+                    disabled={isUpdatingStatus || selectedOrder.order_status === "delivered"}
+                    onClick={() => handleStatusChange("delivered")}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                      selectedOrder.order_status === "delivered"
+                        ? "bg-emerald-600 text-white"
+                        : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                    }`}
+                  >
+                    4. Mark Delivered
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div className="mt-5 flex justify-end border-t border-gray-100 pt-4 dark:border-gray-800">
+            {/* Modal Actions */}
+            <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={() => handleDeleteOrder(selectedOrder.id)}
+                disabled={isUpdatingStatus}
+                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete Order
+              </button>
+
               <button
                 type="button"
                 onClick={() => setSelectedOrder(null)}

@@ -2,8 +2,8 @@
 
 import React, { useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import ImageUpload from "@/components/common/ImageUpload"; 
-import { createProduct } from "@/functions/products"; 
+import ImageUpload from "@/components/common/ImageUpload";
+import { createProduct } from "@/functions/products";
 
 export default function AddProductPage() {
   // 1. Form state variables
@@ -11,60 +11,105 @@ export default function AddProductPage() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [brand, setBrand] = useState("");
-  const [price, setPrice] = useState<number | "">("");
+
+  // Separate bought/cost price and selling price
+  const [costPrice, setCostPrice] = useState<number | "">("");
+  const [sellPrice, setSellPrice] = useState<number | "">("");
+
   const [stockQuantity, setStockQuantity] = useState<number>(1);
   const [availability, setAvailability] = useState("In Stock");
   const [description, setDescription] = useState("");
-  const [imageUrl, setImageUrl] = useState(""); // Cloudinary image URL state
+
+  // Maximum 3 Cloudinary image URLs
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(false);
 
   // Counter handlers
-  const handleIncrement = () => setStockQuantity((prev) => prev + 1);
+  const handleIncrement = () =>
+    setStockQuantity((prev) => prev + 1);
+
   const handleDecrement = () =>
     setStockQuantity((prev) => (prev > 0 ? prev - 1 : 0));
 
-  // 2. Submit Handler: Bundles image URL + all text inputs and saves to Supabase
+  // Add/replace an image in a specific slot
+  const handleImageChange = (index: number, url: string) => {
+    setImageUrls((prev) => {
+      const updated = [...prev];
+
+      if (url) {
+        updated[index] = url;
+      } else {
+        updated.splice(index, 1);
+      }
+
+      return updated.filter(Boolean).slice(0, 3);
+    });
+  };
+
+  // Delete an image so another image can be uploaded
+  const handleDeleteImage = (index: number) => {
+    setImageUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // 2. Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!customId || !name || price === "") {
-      alert("Please fill in Product ID, Name, and Price.");
+    if (!customId || !name || costPrice === "" || sellPrice === "") {
+      alert(
+        "Please fill in Product ID, Name, Bought Price, and Selling Price."
+      );
       return;
     }
 
-    if (!imageUrl) {
-      alert("Please upload a product image first.");
+    if (imageUrls.length === 0) {
+      alert("Please upload at least one product image.");
+      return;
+    }
+
+    if (imageUrls.length > 3) {
+      alert("You can upload a maximum of 3 images.");
       return;
     }
 
     setLoading(true);
 
     try {
-      // Calls your functions/products.ts createProduct helper
       await createProduct({
         custom_product_id: customId,
         name: name,
         category: category,
         brand: brand,
-        price: Number(price),
+
+        // Separate prices
+        cost_price: Number(costPrice),
+        selling_price: Number(sellPrice),
+
         stock_quantity: Number(stockQuantity),
         availability_status: availability,
         description: description,
-        image_url: imageUrl, // Saves the Cloudinary CDN link directly to your Supabase table column
+
+        // Save all images
+        image_urls: imageUrls.slice(0, 3),
+
+        // First image as cover image
+        image_url: imageUrls[0],
       });
 
       alert("Product successfully added to inventory!");
 
-      // Optional: Reset form fields after successful save
+      // Reset form fields after successful save
       setCustomId("");
       setName("");
       setCategory("");
       setBrand("");
-      setPrice("");
+      setCostPrice("");
+      setSellPrice("");
       setStockQuantity(1);
+      setAvailability("In Stock");
       setDescription("");
-      setImageUrl("");
+      setImageUrls([]);
     } catch (error: any) {
       alert(`Failed to save product: ${error.message || error}`);
     } finally {
@@ -77,7 +122,7 @@ export default function AddProductPage() {
       <PageBreadcrumb pageTitle="Add Products" />
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        
+
         {/* SECTION 1: Product Basic Details */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-white/[0.05] dark:bg-white/[0.03]">
           <h3 className="text-base font-semibold text-gray-800 dark:text-white/90 mb-6">
@@ -85,12 +130,14 @@ export default function AddProductPage() {
           </h3>
 
           <div className="space-y-4">
+
             {/* Custom Product ID & Name */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Custom Product ID (SKU) *
                 </label>
+
                 <input
                   type="text"
                   value={customId}
@@ -105,6 +152,7 @@ export default function AddProductPage() {
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Product Name *
                 </label>
+
                 <input
                   type="text"
                   value={name}
@@ -122,6 +170,7 @@ export default function AddProductPage() {
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Category
                 </label>
+
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
@@ -132,7 +181,9 @@ export default function AddProductPage() {
                   <option value="Amplifiers">Amplifiers</option>
                   <option value="Head Units">Head Units</option>
                   <option value="Speakers">Speakers</option>
-                  <option value="Wiring & Accessories">Wiring & Accessories</option>
+                  <option value="Wiring & Accessories">
+                    Wiring & Accessories
+                  </option>
                 </select>
               </div>
 
@@ -140,6 +191,7 @@ export default function AddProductPage() {
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Brand
                 </label>
+
                 <select
                   value={brand}
                   onChange={(e) => setBrand(e.target.value)}
@@ -160,6 +212,7 @@ export default function AddProductPage() {
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Description / Technical Specs
               </label>
+
               <textarea
                 rows={4}
                 value={description}
@@ -168,6 +221,7 @@ export default function AddProductPage() {
                 className="w-full px-3.5 py-2.5 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-blue-500 text-gray-700 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200 resize-y"
               />
             </div>
+
           </div>
         </div>
 
@@ -177,26 +231,62 @@ export default function AddProductPage() {
             Pricing & Inventory
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+            {/* Bought Price */}
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Price ($) *
+                Bought Price *
               </label>
+
               <input
                 type="number"
+                min="0"
                 step="0.01"
-                value={price}
-                onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
-                placeholder="199.99"
+                value={costPrice}
+                onChange={(e) =>
+                  setCostPrice(
+                    e.target.value === ""
+                      ? ""
+                      : Number(e.target.value)
+                  )
+                }
+                placeholder="100.00"
                 required
                 className="w-full px-3.5 py-2.5 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-blue-500 text-gray-700 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200"
               />
             </div>
 
+            {/* Selling Price */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Selling Price *
+              </label>
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={sellPrice}
+                onChange={(e) =>
+                  setSellPrice(
+                    e.target.value === ""
+                      ? ""
+                      : Number(e.target.value)
+                  )
+                }
+                placeholder="149.99"
+                required
+                className="w-full px-3.5 py-2.5 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-blue-500 text-gray-700 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200"
+              />
+            </div>
+
+            {/* Stock Quantity */}
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Stock Quantity
               </label>
+
               <div className="flex items-center w-full border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">
                 <button
                   type="button"
@@ -205,12 +295,17 @@ export default function AddProductPage() {
                 >
                   &#8722;
                 </button>
+
                 <input
                   type="number"
+                  min="0"
                   value={stockQuantity}
-                  onChange={(e) => setStockQuantity(Number(e.target.value))}
+                  onChange={(e) =>
+                    setStockQuantity(Number(e.target.value))
+                  }
                   className="w-full text-center text-xs py-2.5 bg-white border-none outline-none dark:bg-gray-900 dark:text-white"
                 />
+
                 <button
                   type="button"
                   onClick={handleIncrement}
@@ -221,10 +316,12 @@ export default function AddProductPage() {
               </div>
             </div>
 
+            {/* Availability */}
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Availability Status
               </label>
+
               <select
                 value={availability}
                 onChange={(e) => setAvailability(e.target.value)}
@@ -235,18 +332,121 @@ export default function AddProductPage() {
                 <option value="Pre-Order">Pre-Order</option>
               </select>
             </div>
+
           </div>
         </div>
 
         {/* SECTION 3: Cloudinary Upload */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-white/[0.05] dark:bg-white/[0.03]">
-          <h3 className="text-base font-semibold text-gray-800 dark:text-white/90 mb-4">
-            Product Image
-          </h3>
-          <ImageUpload
-            value={imageUrl}
-            onChange={(url) => setImageUrl(url)} // Captures Cloudinary secure_url string
-          />
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
+                Product Images
+              </h3>
+
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Upload up to 3 images. You can remove an image and upload another one.
+              </p>
+            </div>
+
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              {imageUrls.length}/3
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+            {/* Image Slot 1 */}
+            <div className="relative">
+              <div className="mb-2 text-xs font-medium text-gray-700 dark:text-gray-300">
+                Image 1 {imageUrls[0] ? "(Cover)" : ""}
+              </div>
+
+              {imageUrls[0] ? (
+                <div className="relative">
+                  <img
+                    src={imageUrls[0]}
+                    alt="Product image 1"
+                    className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteImage(0)}
+                    className="absolute top-2 right-2 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition shadow"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : (
+                <ImageUpload
+                  value=""
+                  onChange={(url) => handleImageChange(0, url)}
+                />
+              )}
+            </div>
+
+            {/* Image Slot 2 */}
+            <div className="relative">
+              <div className="mb-2 text-xs font-medium text-gray-700 dark:text-gray-300">
+                Image 2
+              </div>
+
+              {imageUrls[1] ? (
+                <div className="relative">
+                  <img
+                    src={imageUrls[1]}
+                    alt="Product image 2"
+                    className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteImage(1)}
+                    className="absolute top-2 right-2 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition shadow"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : (
+                <ImageUpload
+                  value=""
+                  onChange={(url) => handleImageChange(1, url)}
+                />
+              )}
+            </div>
+
+            {/* Image Slot 3 */}
+            <div className="relative">
+              <div className="mb-2 text-xs font-medium text-gray-700 dark:text-gray-300">
+                Image 3
+              </div>
+
+              {imageUrls[2] ? (
+                <div className="relative">
+                  <img
+                    src={imageUrls[2]}
+                    alt="Product image 3"
+                    className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteImage(2)}
+                    className="absolute top-2 right-2 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition shadow"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : (
+                <ImageUpload
+                  value=""
+                  onChange={(url) => handleImageChange(2, url)}
+                />
+              )}
+            </div>
+
+          </div>
         </div>
 
         {/* Actions */}
@@ -259,6 +459,7 @@ export default function AddProductPage() {
             {loading ? "Publishing..." : "Publish Product"}
           </button>
         </div>
+
       </form>
     </div>
   );
