@@ -1,208 +1,184 @@
-# TailAdmin Next.js - Free Next.js Tailwind Admin Dashboard Template
+# Premier Auto Hub — Management Portal
 
-TailAdmin is a free and open-source admin dashboard template built on **Next.js and Tailwind CSS** providing developers with everything they need to create a feature-rich and data-driven: back-end, dashboard, or admin panel solution for any sort of web project.
+A full-stack administrative operations and team management platform built with **Next.js (App Router)**, **TypeScript**, **Tailwind CSS**, and **Supabase**. The platform features dual-role access control (Store Owner vs. Co-Workers), inventory tracking, order status workflows, invoicing, and an automated database keep-alive worker.
 
-![TailAdmin - Next.js Dashboard Preview](./banner.png)
+## Features
 
-With TailAdmin Next.js, you get access to all the necessary dashboard UI components, elements, and pages required to build a high-quality and complete dashboard or admin panel. Whether you're building a dashboard or admin panel for a complex web application or a simple website.
+- **Role-Based Access Control (RBAC):**
+  - **Owner:** Full access to all business analytics, financial revenue cards, co-worker credential management, system settings, and profile details.
+  - **Co-Worker:** Streamlined operational access strictly limited to generating customer invoices, checking today's billed invoices, updating product inventory, and tracking dispatches/shipped orders.
+- **Co-Worker Management:** Create, list, edit, and delete staff member records with individual account credentials, customizable profile images, job roles, and tax/address details.
+- **Route Protection & Middleware:** Edge-level route protection using HTTP cookies, preventing unauthorized access, blocking history-back bypasses upon sign out, and auto-redirecting between `/signin` and `/dashboard`.
+- **Automated Supabase Keep-Alive:** Headless Python worker integrated with GitHub Actions scheduled via cron to ping the database every 3 days, preventing project pauses on the Supabase free tier.
+- **Image Hosting via Cloudinary:** Integrated direct Cloudinary image uploading for user profile avatars and staff cards.
 
-TailAdmin utilizes the powerful features of **Next.js 16** and common features of Next.js such as server-side rendering (SSR), static site generation (SSG), and seamless API route integration. Combined with the advancements of **React 19** and the robustness of **TypeScript**, TailAdmin is the perfect solution to help get your project up and running quickly.
+## File Structure
 
-## Overview
-
-TailAdmin provides essential UI components and layouts for building feature-rich, data-driven admin dashboards and control panels. It's built on:
-
-* Next.js 16.x
-* React 19
-* TypeScript
-* Tailwind CSS V4
-
-### Quick Links
-
-* [✨ Visit Website](https://tailadmin.com)
-* [📄 Documentation](https://tailadmin.com/docs)
-* [⬇️ Download](https://tailadmin.com/download)
-* [🖌️ Figma Design File (Community Edition)](https://www.figma.com/community/file/1463141366275764364)
-* [⚡ Get PRO Version](https://tailadmin.com/pricing)
-
-### Demos
-
-* [Free Version](https://nextjs-free-demo.tailadmin.com)
-* [Pro Version](https://nextjs-demo.tailadmin.com)
-
-### Other Versions
-
-- [Next.js Version](https://github.com/TailAdmin/free-nextjs-admin-dashboard)
-- [React.js Version](https://github.com/TailAdmin/free-react-tailwind-admin-dashboard)
-- [Vue.js Version](https://github.com/TailAdmin/vue-tailwind-admin-dashboard)
-- [Angular Version](https://github.com/TailAdmin/free-angular-tailwind-dashboard)
-- [Laravel Version](https://github.com/TailAdmin/tailadmin-laravel)
-
-## Installation
-
-### Prerequisites
-
-To get started with TailAdmin, ensure you have the following prerequisites installed and set up:
-
-* Node.js 18.x or later (recommended to use Node.js 20.x or later)
-
-### Cloning the Repository
-
-Clone the repository using the following command:
-
-```bash
-git clone https://github.com/TailAdmin/free-nextjs-admin-dashboard.git
+```
+admin-web/
+├── .github/
+│   └── workflows/
+│       └── keep_supabase_alive.yml    # Scheduled workflow to ping Supabase
+├── scripts/
+│   └── ping_supabase.py              # Lightweight REST ping script
+├── public/
+│   └── images/
+│       ├── logo/                     # Application light & dark logos
+│       └── user/                     # Static fallback placeholders
+├── src/
+│   ├── app/
+│   │   ├── (auth)/
+│   │   │   └── signin/
+│   │   │       └── page.tsx          # Sign-in portal
+│   │   ├── dashboard/
+│   │   │   └── page.tsx              # Adaptive role-based dashboard
+│   │   ├── coworkers/
+│   │   │   └── page.tsx              # Staff management CRUD interface
+│   │   ├── layout.tsx                # Base application shell
+│   │   └── page.tsx                  # Root redirect entry point
+│   ├── components/
+│   │   ├── common/
+│   │   │   ├── ImageUpload.tsx       # Cloudinary media uploader
+│   │   │   └── ThemeToggleButton.tsx # Light/dark mode toggle
+│   │   ├── form/
+│   │   │   ├── input/InputField.tsx  # Extended HTML inputs
+│   │   │   └── Label.tsx             # Form labels
+│   │   ├── header/
+│   │   │   ├── AppHeader.tsx         # Responsive application header
+│   │   │   └── UserDropdown.tsx      # Profile menu & history-clearing signout
+│   │   ├── sidebar/
+│   │   │   └── AppSidebar.tsx        # Collapsible dynamic role navigation
+│   │   └── ui/
+│   │       ├── button/Button.tsx     # Custom buttons
+│   │       └── modal/Modal.tsx       # Dialog modal container
+│   ├── functions/
+│   │   ├── auth.ts                   # Universal authentication logic
+│   │   ├── coworkers.ts              # Co-worker table CRUD operations
+│   │   └── profile.ts                # Owner profile & Cloudinary logic
+│   ├── middleware.ts                 # Next.js edge route protection
+│   └── utils/
+│       └── supabase/
+│           ├── client.ts             # Browser Supabase client
+│           └── server.ts             # Server-side Supabase client
+├── .env.local                        # Local secrets and API keys
+├── next.config.ts                    # Next.js configuration & domain rules
+├── package.json
+├── tailwind.config.ts
+└── tsconfig.json
 ```
 
-> Windows Users: place the repository near the root of your drive if you face issues while cloning.
+## Tech Stack & Dependencies
 
-1. Install dependencies:
+| Category | Technology |
+|---|---|
+| Framework | Next.js 15+ (App Router, Turbopack) |
+| Language | TypeScript |
+| Styling | Tailwind CSS |
+| Database & Auth | Supabase (PostgreSQL & PostgREST API) |
+| Icons | Lucide React |
+| Media Storage | Cloudinary |
+| Automation | Python 3, GitHub Actions |
 
-   ```bash
-   npm install
-   # or
-   yarn install
-   ```
+## Database Setup (Supabase SQL)
 
-   > Use `--legacy-peer-deps` flag if you face peer-dependency error during installation.
+Run the following scripts in your Supabase SQL Editor:
 
-2. Start the development server:
+```sql
+-- 1. Create Co-workers Table
+CREATE TABLE IF NOT EXISTS public.coworkers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    avatar_url TEXT,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL DEFAULT 'ChangeMe123!',
+    phone VARCHAR(50),
+    job_title VARCHAR(100) DEFAULT 'Staff Member',
+    status VARCHAR(50) DEFAULT 'Active',
+    bio TEXT,
+    country VARCHAR(100) DEFAULT 'Sri Lanka',
+    city_state VARCHAR(150),
+    postal_code VARCHAR(50),
+    tax_id VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-   ```bash
-   npm run dev
-   # or
-   yarn dev
-   ```
+-- 2. Create Owner Profile Table
+CREATE TABLE IF NOT EXISTS public.owner_profile (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    avatar_url TEXT,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    display_name VARCHAR(150),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(100) DEFAULT 'Store Owner',
+    phone VARCHAR(50),
+    bio TEXT,
+    country VARCHAR(100) DEFAULT 'Sri Lanka',
+    city_state VARCHAR(150),
+    postal_code VARCHAR(50),
+    tax_id VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-## Components
+-- Enable RLS and create base access policies
+ALTER TABLE public.coworkers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.owner_profile ENABLE ROW LEVEL SECURITY;
 
-TailAdmin is a pre-designed starting point for building a web-based dashboard using Next.js and Tailwind CSS. The template includes:
+CREATE POLICY "Allow all operations on coworkers" 
+ON public.coworkers FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
-* Sophisticated and accessible sidebar
-* Data visualization components
-* Profile management and custom 404 page
-* Tables and Charts(Line and Bar)
-* Authentication forms and input elements
-* Alerts, Dropdowns, Modals, Buttons and more
-* Can't forget Dark Mode 🕶️
+CREATE POLICY "Allow all operations on owner_profile" 
+ON public.owner_profile FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+```
 
-All components are built with React and styled using Tailwind CSS for easy customization.
+## Getting Started
 
-## Feature Comparison
+### 1. Clone the Repository
 
-### Free Version
+```bash
+git clone https://github.com/Chamodakavi/admin-web.git
+cd admin-web
+```
 
-* 1 Unique Dashboard
-* 30+ dashboard components
-* 50+ UI elements
-* Basic Figma design files
-* Community support
+### 2. Install Node.js Dependencies
 
-### Pro Version
+```bash
+npm install
+```
 
-* 7 Unique Dashboards: Analytics, Ecommerce, Marketing, CRM, SaaS, Stocks, Logistics (more coming soon)
-* 500+ dashboard components and UI elements
-* Complete Figma design file
-* Email support
+### 3. Configure Environment Variables
 
-To learn more about pro version features and pricing, visit our [pricing page](https://tailadmin.com/pricing).
+Create a `.env.local` file in the project root:
 
-## Changelog
+```env
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 
-### Version 2.3.0 - [April 28, 2026]
+# Cloudinary Configuration
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your-cloud-name
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=your-upload-preset
+```
 
-- **New Feature**: Added **AI Dashboard** with token usage and revenue tracking.
-- **New Feature**: Added **Sales Dashboard** with retention and multi-channel analytics.
-- **New Feature**: Added **Finance Dashboard** with cashflow and balance management.
-- **New Feature**: Introduced **6 New Layout variations** for improved UI flexibility.
-- **Enhancement**: Integrated **Advanced Data Visualization** with 7+ new chart types.
+### 4. Run Development Server
 
-### Version 2.2.3 - [March 15, 2026]
+```bash
+npm run dev
+```
 
-* update ESLint configuration and dependencies; upgrade Next.js to version 16.1.6
+Open [http://localhost:3000](http://localhost:3000) in your browser. Unauthenticated visits automatically redirect to `/signin`.
 
-### Version 2.2.2 - [December 30, 2025]
+## Keep-Alive Script Setup
 
-* Fixed date picker positioning and functionality in Statistics Chart.
+To prevent the Supabase database from pausing due to inactivity:
 
-
-### Version 2.1.0 - [November 15, 2025]
-
-* Updated to Next.js 16.x
-* Fixed all reported minor bugs
-
-### Version 2.0.2 - [March 25, 2025]
-
-* Upgraded to Next.js 16.x for [CVE-2025-29927](https://nextjs.org/blog/cve-2025-29927) concerns
-* Included overrides vectormap for packages to prevent peer dependency errors during installation.
-* Migrated from react-flatpickr to flatpickr package for React 19 support
-
-### Version 2.0.1 - [February 27, 2025]
-
-#### Update Overview
-
-* Upgraded to Tailwind CSS v4 for better performance and efficiency.
-* Updated class usage to match the latest syntax and features.
-* Replaced deprecated class and optimized styles.
-
-#### Next Steps
-
-* Run npm install or yarn install to update dependencies.
-* Check for any style changes or compatibility issues.
-* Refer to the Tailwind CSS v4 [Migration Guide](https://tailwindcss.com/docs/upgrade-guide) on this release. if needed.
-* This update keeps the project up to date with the latest Tailwind improvements. 🚀
-
-### v2.0.0 (February 2025)
-
-A major update focused on Next.js 16 implementation and comprehensive redesign.
-
-#### Major Improvements
-
-* Complete redesign using Next.js 16 App Router and React Server Components
-* Enhanced user interface with Next.js-optimized components
-* Improved responsiveness and accessibility
-* New features including collapsible sidebar, chat screens, and calendar
-* Redesigned authentication using Next.js App Router and server actions
-* Updated data visualization using ApexCharts for React
-
-#### Breaking Changes
-
-* Migrated from Next.js 14 to Next.js 16
-* Chart components now use ApexCharts for React
-* Authentication flow updated to use Server Actions and middleware
-
-[Read more](https://tailadmin.com/docs/update-logs/nextjs) on this release.
-
-### v1.3.4 (July 01, 2024)
-
-* Fixed JSvectormap rendering issues
-
-### v1.3.3 (June 20, 2024)
-
-* Fixed build error related to Loader component
-
-### v1.3.2 (June 19, 2024)
-
-* Added ClickOutside component for dropdown menus
-* Refactored sidebar components
-* Updated Jsvectormap package
-
-### v1.3.1 (Feb 12, 2024)
-
-* Fixed layout naming consistency
-* Updated styles
-
-### v1.3.0 (Feb 05, 2024)
-
-* Upgraded to Next.js 14
-* Added Flatpickr integration
-* Improved form elements
-* Enhanced multiselect functionality
-* Added default layout component
-
-## License
-
-TailAdmin Next.js Free Version is released under the MIT License.
-
-## Support
-If you find this project helpful, please consider giving it a star on GitHub. Your support helps us continue developing and maintaining this template.
+1. Push this project to GitHub.
+2. Navigate to **Settings → Secrets and variables → Actions** in your GitHub repository.
+3. Under **Repository secrets**, click **New repository secret** and add:
+   - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase URL.
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Your Supabase public anon key.
+4. The workflow in `.github/workflows/keep_supabase_alive.yml` will automatically execute every 3 days. You can also trigger it manually from the Actions tab.
