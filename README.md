@@ -182,3 +182,30 @@ To prevent the Supabase database from pausing due to inactivity:
    - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase URL.
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Your Supabase public anon key.
 4. The workflow in `.github/workflows/keep_supabase_alive.yml` will automatically execute every 3 days. You can also trigger it manually from the Actions tab.
+
+
+Upcoming...
+
+**Security & Production Hardening**
+
+-   **Password Hashing:** Currently, passwords are saved and compared as plain text in the database. Implement `bcrypt` or Supabase Auth's native credential handling so credentials are never stored directly in raw text.
+
+-   **Granular Database RLS Policies:** Replace the open policy (`USING (true) WITH CHECK (true)`) with policies checking JWT tokens or role headers so co-workers cannot manipulate database records directly using the Supabase public anon key.
+
+-   **Audit Trail & Activity Logs:** A log table tracking who created an invoice, who changed product stock, or who edited an employee profile, showing timestamps and user IDs.
+
+**Core Business & Workflow Modules**
+
+-   **Invoice Generation & PDF Export:** A dynamic invoice builder with line items, tax calculation (VAT/SSCL), automatic discount application, and a one-click "Download PDF" or "Print Thermal Receipt" button.
+
+-   **Low Stock Alerts & Reorder Points:** An alert badge on the dashboard and product catalog showing items falling below a set minimum quantity (e.g., fewer than 5 units left).
+
+-   **Order Status Workflow Pipeline:** A Kanban or stepper view for orders moving from `Pending` $\\rightarrow$ `Processing` $\\rightarrow$ `Ready to Ship` $\\rightarrow$ `Shipped` $\\rightarrow$ `Delivered`, along with courier tracking numbers.
+
+-   **Customer Ledger & History:** When viewing a customer, see their previous orders, lifetime spend, unpaid invoices, and vehicle models/preferences.
+
+**Communication & Automation**
+
+-   **Automated Notifications:** WhatsApp or SMS alerts (e.g., via Notify.lk or Twilio) sending dispatch tracking links and digital invoice links directly to the customer's phone number upon order completion.
+
+-   **CSV Export/Import:** Bulk import for products to upload entire catalogs at once, and CSV export for monthly accounting and tax filings.
