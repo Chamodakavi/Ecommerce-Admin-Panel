@@ -184,7 +184,7 @@ To prevent the Supabase database from pausing due to inactivity:
 4. The workflow in `.github/workflows/keep_supabase_alive.yml` will automatically execute every 3 days. You can also trigger it manually from the Actions tab.
 
 
-Upcoming...
+## Upcoming...
 
 **Security & Production Hardening**
 
