@@ -1,3 +1,8 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -6,73 +11,104 @@ import {
   TableRow,
 } from "../ui/table";
 import Badge from "../ui/badge/Badge";
-import Image from "next/image";
+import { createClient } from "@/utils/supabase/client";
+import { Loader2 } from "lucide-react";
 
-// Define the TypeScript interface for the table rows
-interface Product {
-  id: number; // Unique identifier for each product
-  name: string; // Product name
-  variants: string; // Number of variants (e.g., "1 Variant", "2 Variants")
-  category: string; // Category of the product
-  price: string; // Price of the product (as a string with currency symbol)
-  // status: string; // Status of the product
-  image: string; // URL or path to the product image
-  status: "Delivered" | "Pending" | "Canceled"; // Status of the product
+// Structure of each line item inside the items JSONB column
+interface OrderLineItem {
+  id?: string | number;
+  product_name?: string;
+  name?: string;
+  image?: string;
+  image_url?: string;
+  quantity?: number;
+  price?: number;
 }
 
-// Define the table data using the interface
-const tableData: Product[] = [
-  {
-    id: 1,
-    name: "MacBook Pro 13”",
-    variants: "2 Variants",
-    category: "Laptop",
-    price: "$2399.00",
-    status: "Delivered",
-    image: "/images/product/product-01.jpg", // Replace with actual image URL
-  },
-  {
-    id: 2,
-    name: "Apple Watch Ultra",
-    variants: "1 Variant",
-    category: "Watch",
-    price: "$879.00",
-    status: "Pending",
-    image: "/images/product/product-02.jpg", // Replace with actual image URL
-  },
-  {
-    id: 3,
-    name: "iPhone 15 Pro Max",
-    variants: "2 Variants",
-    category: "SmartPhone",
-    price: "$1869.00",
-    status: "Delivered",
-    image: "/images/product/product-03.jpg", // Replace with actual image URL
-  },
-  {
-    id: 4,
-    name: "iPad Pro 3rd Gen",
-    variants: "2 Variants",
-    category: "Electronics",
-    price: "$1699.00",
-    status: "Canceled",
-    image: "/images/product/product-04.jpg", // Replace with actual image URL
-  },
-  {
-    id: 5,
-    name: "AirPods Pro 2nd Gen",
-    variants: "1 Variant",
-    category: "Accessories",
-    price: "$240.00",
-    status: "Delivered",
-    image: "/images/product/product-05.jpg", // Replace with actual image URL
-  },
-];
+// Interface matching the public.orders schema
+export interface Order {
+  id: string;
+  order_number: string;
+  customer_name: string;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  items: OrderLineItem[];
+  total_amount: number;
+  payment_method?: string;
+  payment_status?: string;
+  order_status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | string;
+  created_at: string;
+}
 
 export default function RecentOrders() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [statusFilter, setStatusFilter] = useState<string>("All");
+  const supabase = createClient();
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      let query = supabase
+        .from("orders")
+        .select(
+          "id, order_number, customer_name, customer_email, items, total_amount, payment_method, payment_status, order_status, created_at"
+        )
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (statusFilter !== "All") {
+        query = query.eq("order_status", statusFilter.toLowerCase());
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      setOrders(data || []);
+    } catch (err: any) {
+      console.error("Failed to fetch recent orders:", err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, [statusFilter]);
+
+  const toggleFilter = () => {
+    const sequence = ["All", "Processing", "Shipped", "Delivered", "Cancelled"];
+    const currentIndex = sequence.indexOf(statusFilter);
+    const nextIndex = (currentIndex + 1) % sequence.length;
+    setStatusFilter(sequence[nextIndex]);
+  };
+
+  const getBadgeColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "delivered":
+        return "success";
+      case "shipped":
+        return "info";
+      case "processing":
+      case "pending":
+        return "warning";
+      case "cancelled":
+        return "error";
+      default:
+        return "light";
+    }
+  };
+
+  const formatCurrency = (val: number) => {
+    return `LKR ${Number(val || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6">
-      <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
             Recent Orders
@@ -80,129 +116,132 @@ export default function RecentOrders() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">
-            <svg
-              className="stroke-current fill-white dark:fill-gray-800"
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M2.29004 5.90393H17.7067"
-                stroke=""
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M17.7075 14.0961H2.29085"
-                stroke=""
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M12.0826 3.33331C13.5024 3.33331 14.6534 4.48431 14.6534 5.90414C14.6534 7.32398 13.5024 8.47498 12.0826 8.47498C10.6627 8.47498 9.51172 7.32398 9.51172 5.90415C9.51172 4.48432 10.6627 3.33331 12.0826 3.33331Z"
-                fill=""
-                stroke=""
-                strokeWidth="1.5"
-              />
-              <path
-                d="M7.91745 11.525C6.49762 11.525 5.34662 12.676 5.34662 14.0959C5.34661 15.5157 6.49762 16.6667 7.91745 16.6667C9.33728 16.6667 10.4883 15.5157 10.4883 14.0959C10.4883 12.676 9.33728 11.525 7.91745 11.525Z"
-                fill=""
-                stroke=""
-                strokeWidth="1.5"
-              />
-            </svg>
-            Filter
+          <button
+            type="button"
+            onClick={toggleFilter}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+          >
+            Filter: {statusFilter}
           </button>
-          <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">
+          <Link
+            href="/orders"
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+          >
             See all
-          </button>
+          </Link>
         </div>
       </div>
+
       <div className="max-w-full overflow-x-auto">
         <Table>
-          {/* Table Header */}
-          <TableHeader className="border-gray-100 dark:border-gray-800 border-y">
+          <TableHeader className="border-y border-gray-100 dark:border-gray-800">
             <TableRow>
               <TableCell
                 isHeader
-                className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                className="py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
               >
-                Products
+                Order / Items
               </TableCell>
               <TableCell
                 isHeader
-                className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                className="py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
               >
-                Category
+                Customer
               </TableCell>
               <TableCell
                 isHeader
-                className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                className="py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
               >
-                Price
+                Total Amount
               </TableCell>
               <TableCell
                 isHeader
-                className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                className="py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
               >
                 Status
               </TableCell>
             </TableRow>
           </TableHeader>
 
-          {/* Table Body */}
-
           <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {tableData.map((product) => (
-              <TableRow key={product.id} className="">
-                <TableCell className="py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-[50px] w-[50px] overflow-hidden rounded-md">
-                      <Image
-                        width={50}
-                        height={50}
-                        src={product.image}
-                        className="h-[50px] w-[50px]"
-                        alt={product.name}
-                      />
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
-                        {product.name}
-                      </p>
-                      <span className="text-gray-500 text-theme-xs dark:text-gray-400">
-                        {product.variants}
-                      </span>
-                    </div>
+            {loading ? (
+              <TableRow>
+                <TableCell className="py-8 text-center">
+                  <div className="flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    Loading recent orders...
                   </div>
                 </TableCell>
-                <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                  {product.price}
-                </TableCell>
-                <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                  {product.category}
-                </TableCell>
-                <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                  <Badge
-                    size="sm"
-                    color={
-                      product.status === "Delivered"
-                        ? "success"
-                        : product.status === "Pending"
-                        ? "warning"
-                        : "error"
-                    }
-                  >
-                    {product.status}
-                  </Badge>
+              </TableRow>
+            ) : orders.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  className="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
+                >
+                  No orders found.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              orders.map((order) => {
+                // Parse the first item thumbnail & title from items jsonb
+                const firstItem = Array.isArray(order.items) && order.items.length > 0 ? order.items[0] : null;
+                const extraItemsCount = Array.isArray(order.items) ? order.items.length - 1 : 0;
+                const displayTitle = firstItem?.product_name || firstItem?.name || "Order Item";
+                const displayImage = firstItem?.image_url || firstItem?.image || "/images/product/product-01.jpg";
+
+                return (
+                  <TableRow key={order.id}>
+                    {/* Item & Order ID */}
+                    <TableCell className="py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="relative h-[48px] w-[48px] shrink-0 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800">
+                          <Image
+                            fill
+                            src={displayImage}
+                            className="object-cover"
+                            alt={displayTitle}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">
+                            #{order.order_number}
+                          </p>
+                          <span className="truncate text-theme-xs text-gray-500 dark:text-gray-400">
+                            {displayTitle}
+                            {extraItemsCount > 0 && ` +${extraItemsCount} more`}
+                          </span>
+                        </div>
+                      </div>
+                    </TableCell>
+
+                    {/* Customer Info */}
+                    <TableCell className="py-3">
+                      <p className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                        {order.customer_name}
+                      </p>
+                      <span className="text-theme-xs text-gray-400">
+                        {order.payment_method || "COD"}
+                      </span>
+                    </TableCell>
+
+                    {/* Total Amount */}
+                    <TableCell className="py-3 text-theme-sm font-semibold text-gray-800 dark:text-gray-200">
+                      {formatCurrency(order.total_amount)}
+                    </TableCell>
+
+                    {/* Order Status Badge */}
+                    <TableCell className="py-3 text-theme-sm">
+                      <Badge
+                        size="sm"
+                        color={getBadgeColor(order.order_status)}
+                      >
+                        <span className="capitalize">{order.order_status}</span>
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </div>
