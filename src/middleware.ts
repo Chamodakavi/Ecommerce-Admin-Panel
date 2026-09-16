@@ -10,6 +10,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/profile") ||
     pathname.startsWith("/coworkers") ||
+    pathname.startsWith("/sales") ||
     pathname.startsWith("/products");
 
   // 1. If not logged in and trying to access protected pages -> redirect to /signin
