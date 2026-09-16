@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -10,7 +10,6 @@ import {
   ChevronDownIcon,
   GridIcon,
   HorizontaLDots,
-  PlugInIcon,
   UserCircleIcon,
 } from "../icons/index";
 import { Ship, FileText, TrendingUp, Users } from "lucide-react";
@@ -20,9 +19,10 @@ type NavItem = {
   icon: React.ReactNode;
   path?: string;
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
+  ownerOnly?: boolean; // Flag to restrict to owner
 };
 
-const navItems: NavItem[] = [
+const allNavItems: NavItem[] = [
   {
     icon: <GridIcon />,
     name: "Dashboard",
@@ -55,6 +55,7 @@ const navItems: NavItem[] = [
   {
     icon: <TrendingUp />,
     name: "Sales Analytics",
+    ownerOnly: true, // Restricted for co-workers
     subItems: [
       { name: "Daily Sales Analytics", path: "/sales/daily", pro: false },
       { name: "Monthly Sales Analytics", path: "/sales/monthly", pro: false },
@@ -63,6 +64,7 @@ const navItems: NavItem[] = [
   {
     icon: <UserCircleIcon />,
     name: "Profiles",
+    ownerOnly: true, // Restricted for co-workers
     subItems: [
       { name: "My Profile", path: "/profile", pro: false },
       { name: "Co Worker Profile", path: "/profile/co-workers", pro: false },
@@ -81,22 +83,36 @@ const navItems: NavItem[] = [
   },
 ];
 
-// other items
-const othersItems: NavItem[] = [
-  {
-    icon: <PlugInIcon />,
-    name: "Authentication",
-    subItems: [
-      { name: "Sign In", path: "/signin", pro: false },
-      { name: "Sign Up", path: "/signup", pro: false },
-    ],
-  },
-];
-
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered, toggleMobileSidebar } =
     useSidebar();
   const pathname = usePathname();
+  const [accountType, setAccountType] = useState<"owner" | "coworker">("owner");
+
+  // Read current user session role
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored =
+        localStorage.getItem("user_session") ||
+        localStorage.getItem("owner_session");
+      if (stored) {
+        try {
+          const user = JSON.parse(stored);
+          setAccountType(user.account_type || "owner");
+        } catch (e) {
+          console.error("Failed to parse session", e);
+        }
+      }
+    }
+  }, []);
+
+  // Filter items: Remove owner-only navigation if user is a co-worker
+  const filteredNavItems = useMemo(() => {
+    if (accountType === "coworker") {
+      return allNavItems.filter((item) => !item.ownerOnly);
+    }
+    return allNavItems;
+  }, [accountType]);
 
   // Helper to close sidebar on mobile navigation
   const handleLinkClick = () => {
@@ -105,18 +121,61 @@ const AppSidebar: React.FC = () => {
     }
   };
 
-  const renderMenuItems = (
-    navItems: NavItem[],
-    menuType: "main" | "others"
-  ) => (
+  const [openSubmenu, setOpenSubmenu] = useState<number | null>(null);
+  const [subMenuHeight, setSubMenuHeight] = useState<Record<number, number>>({});
+  const subMenuRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  const isActive = useCallback((path: string) => path === pathname, [pathname]);
+
+  // Auto-close mobile sidebar whenever pathname changes
+  useEffect(() => {
+    if (isMobileOpen) {
+      toggleMobileSidebar();
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    let submenuMatched = false;
+    filteredNavItems.forEach((nav, index) => {
+      if (nav.subItems) {
+        nav.subItems.forEach((subItem) => {
+          if (isActive(subItem.path)) {
+            setOpenSubmenu(index);
+            submenuMatched = true;
+          }
+        });
+      }
+    });
+
+    if (!submenuMatched) {
+      setOpenSubmenu(null);
+    }
+  }, [pathname, isActive, filteredNavItems]);
+
+  useEffect(() => {
+    if (openSubmenu !== null) {
+      if (subMenuRefs.current[openSubmenu]) {
+        setSubMenuHeight((prevHeights) => ({
+          ...prevHeights,
+          [openSubmenu]: subMenuRefs.current[openSubmenu]?.scrollHeight || 0,
+        }));
+      }
+    }
+  }, [openSubmenu]);
+
+  const handleSubmenuToggle = (index: number) => {
+    setOpenSubmenu((prev) => (prev === index ? null : index));
+  };
+
+  const renderMenuItems = (items: NavItem[]) => (
     <ul className="flex flex-col gap-4">
-      {navItems.map((nav, index) => (
+      {items.map((nav, index) => (
         <li key={nav.name}>
           {nav.subItems ? (
             <button
-              onClick={() => handleSubmenuToggle(index, menuType)}
+              onClick={() => handleSubmenuToggle(index)}
               className={`menu-item group ${
-                openSubmenu?.type === menuType && openSubmenu?.index === index
+                openSubmenu === index
                   ? "menu-item-active"
                   : "menu-item-inactive"
               } cursor-pointer ${
@@ -127,7 +186,7 @@ const AppSidebar: React.FC = () => {
             >
               <span
                 className={`${
-                  openSubmenu?.type === menuType && openSubmenu?.index === index
+                  openSubmenu === index
                     ? "menu-item-icon-active"
                     : "menu-item-icon-inactive"
                 }`}
@@ -140,8 +199,7 @@ const AppSidebar: React.FC = () => {
               {(isExpanded || isHovered || isMobileOpen) && (
                 <ChevronDownIcon
                   className={`ml-auto h-5 w-5 transition-transform duration-200 ${
-                    openSubmenu?.type === menuType &&
-                    openSubmenu?.index === index
+                    openSubmenu === index
                       ? "rotate-180 text-brand-500"
                       : ""
                   }`}
@@ -175,13 +233,13 @@ const AppSidebar: React.FC = () => {
           {nav.subItems && (isExpanded || isHovered || isMobileOpen) && (
             <div
               ref={(el) => {
-                subMenuRefs.current[`${menuType}-${index}`] = el;
+                subMenuRefs.current[index] = el;
               }}
               className="overflow-hidden transition-all duration-300"
               style={{
                 height:
-                  openSubmenu?.type === menuType && openSubmenu?.index === index
-                    ? `${subMenuHeight[`${menuType}-${index}`]}px`
+                  openSubmenu === index
+                    ? `${subMenuHeight[index]}px`
                     : "0px",
               }}
             >
@@ -232,73 +290,6 @@ const AppSidebar: React.FC = () => {
       ))}
     </ul>
   );
-
-  const [openSubmenu, setOpenSubmenu] = useState<{
-    type: "main" | "others";
-    index: number;
-  } | null>(null);
-  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
-    {}
-  );
-  const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  const isActive = useCallback((path: string) => path === pathname, [pathname]);
-
-  // Auto-close mobile sidebar whenever pathname changes
-  useEffect(() => {
-    if (isMobileOpen) {
-      toggleMobileSidebar();
-    }
-  }, [pathname]);
-
-  useEffect(() => {
-    let submenuMatched = false;
-    ["main", "others"].forEach((menuType) => {
-      const items = menuType === "main" ? navItems : othersItems;
-      items.forEach((nav, index) => {
-        if (nav.subItems) {
-          nav.subItems.forEach((subItem) => {
-            if (isActive(subItem.path)) {
-              setOpenSubmenu({
-                type: menuType as "main" | "others",
-                index,
-              });
-              submenuMatched = true;
-            }
-          });
-        }
-      });
-    });
-
-    if (!submenuMatched) {
-      setOpenSubmenu(null);
-    }
-  }, [pathname, isActive]);
-
-  useEffect(() => {
-    if (openSubmenu !== null) {
-      const key = `${openSubmenu.type}-${openSubmenu.index}`;
-      if (subMenuRefs.current[key]) {
-        setSubMenuHeight((prevHeights) => ({
-          ...prevHeights,
-          [key]: subMenuRefs.current[key]?.scrollHeight || 0,
-        }));
-      }
-    }
-  }, [openSubmenu]);
-
-  const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
-    setOpenSubmenu((prevOpenSubmenu) => {
-      if (
-        prevOpenSubmenu &&
-        prevOpenSubmenu.type === menuType &&
-        prevOpenSubmenu.index === index
-      ) {
-        return null;
-      }
-      return { type: menuType, index };
-    });
-  };
 
   return (
     <aside
@@ -365,24 +356,7 @@ const AppSidebar: React.FC = () => {
                   <HorizontaLDots />
                 )}
               </h2>
-              {renderMenuItems(navItems, "main")}
-            </div>
-
-            <div>
-              <h2
-                className={`mb-4 flex text-xs uppercase leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Others"
-                ) : (
-                  <HorizontaLDots />
-                )}
-              </h2>
-              {renderMenuItems(othersItems, "others")}
+              {renderMenuItems(filteredNavItems)}
             </div>
           </div>
         </nav>
