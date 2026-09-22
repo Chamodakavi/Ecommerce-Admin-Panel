@@ -46,14 +46,44 @@ export default function BilledInvoicesPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedStatus, setSelectedStatus] = useState<string>("All");
 
+  // Role verification state
+  const [isOwner, setIsOwner] = useState<boolean>(false);
+
   // Modal State
   const [editingInvoice, setEditingInvoice] = useState<StoredInvoice | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
+  // Read authenticated session on mount to detect role
   useEffect(() => {
     fetchInvoices();
+    checkUserRole();
   }, []);
+
+  const checkUserRole = () => {
+    try {
+      // 1. Check local session storage set during authentication
+      const storedRole = localStorage.getItem("user_role") || localStorage.getItem("role");
+      const storedAccountType = localStorage.getItem("account_type");
+
+      // 2. Check document cookies fallback
+      const getCookie = (name: string) => {
+        const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+        return match ? decodeURIComponent(match[2]) : null;
+      };
+      const cookieRole = getCookie("user_role") || getCookie("role");
+
+      const role = (storedRole || storedAccountType || cookieRole || "").toLowerCase();
+
+      if (role.includes("owner")) {
+        setIsOwner(true);
+      } else {
+        setIsOwner(false);
+      }
+    } catch {
+      setIsOwner(false);
+    }
+  };
 
   const fetchInvoices = async () => {
     try {
@@ -89,9 +119,10 @@ export default function BilledInvoicesPage() {
   const handleRowClick = (inv: StoredInvoice) => {
     setEditingInvoice({
       ...inv,
-      items: Array.isArray(inv.items) && inv.items.length > 0
-        ? JSON.parse(JSON.stringify(inv.items))
-        : [{ id: "1", name: "", quantity: 1, unitPrice: 0 }],
+      items:
+        Array.isArray(inv.items) && inv.items.length > 0
+          ? JSON.parse(JSON.stringify(inv.items))
+          : [{ id: "1", name: "", quantity: 1, unitPrice: 0 }],
     });
   };
 
@@ -211,9 +242,15 @@ export default function BilledInvoicesPage() {
     }
   };
 
-  // Delete Invoice Handler
+  // Delete Invoice Handler with strict Owner validation
   const handleDeleteInvoice = async () => {
     if (!editingInvoice) return;
+
+    if (!isOwner) {
+      alert("Access Denied: Only the store owner has permission to delete invoices.");
+      return;
+    }
+
     const confirmDelete = window.confirm(
       `Are you sure you want to delete invoice "${editingInvoice.invoice_number}" for ${editingInvoice.customer_name}? This action cannot be undone.`
     );
@@ -707,17 +744,22 @@ export default function BilledInvoicesPage() {
               </div>
             </div>
 
-            {/* Modal Footer with Delete & Save */}
+            {/* Modal Footer with Role-Gated Delete & Save */}
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
-              <button
-                type="button"
-                onClick={handleDeleteInvoice}
-                disabled={isDeleting || isSaving}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 hover:text-red-700 disabled:opacity-50 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                {isDeleting ? "Deleting..." : "Delete Invoice"}
-              </button>
+              <div>
+                {/* STRICT OWNER CHECK: Delete button only rendered if authenticated as owner */}
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteInvoice}
+                    disabled={isDeleting || isSaving}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 hover:text-red-700 disabled:opacity-50 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {isDeleting ? "Deleting..." : "Delete Invoice"}
+                  </button>
+                )}
+              </div>
 
               <div className="flex items-center gap-3">
                 <button

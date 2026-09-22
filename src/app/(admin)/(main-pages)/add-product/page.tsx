@@ -1,15 +1,42 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import ImageUpload from "@/components/common/ImageUpload";
 import { createProduct } from "@/functions/products";
+import CreatableSelectModal from "@/components/common/CreatableSelectModal";
+import { getCategories, createCategory } from "@/functions/categories";
+import { getBrands, createBrand } from "@/functions/brands";
+
 
 export default function AddProductPage() {
   // 1. Form state variables
   const [customId, setCustomId] = useState("");
   const [name, setName] = useState("");
+
+  const [categories, setCategories] = useState<string[]>([]);
   const [category, setCategory] = useState("");
+
+useEffect(() => {
+    async function loadSelectOptions() {
+      try {
+        const [categoriesData, brandsData] = await Promise.all([
+          getCategories(),
+          getBrands(),
+        ]);
+        setCategories(categoriesData);
+        setBrands(brandsData);
+      } catch (err: any) {
+        console.error("Failed to load categories or brands:", err.message);
+      }
+    }
+
+    loadSelectOptions();
+  }, []);
+
+
+// Brands state
+  const [brands, setBrands] = useState<string[]>([]);
   const [brand, setBrand] = useState("");
 
   // Separate bought/cost price and selling price
@@ -31,6 +58,18 @@ export default function AddProductPage() {
 
   const handleDecrement = () =>
     setStockQuantity((prev) => (prev > 0 ? prev - 1 : 0));
+
+  // Category and Brand dynamic creators
+const handleAddCategory = async (newCat: string) => {
+  const savedName = await createCategory(newCat);
+  setCategories((prev) => [...prev, savedName]);
+};
+
+const handleAddBrand = async (newBrand: string) => {
+  const savedBrand = await createBrand(newBrand);
+  setBrands((prev) => [...prev, savedBrand]);
+  return savedBrand;
+};
 
   // Add/replace an image in a specific slot
   const handleImageChange = (index: number, url: string) => {
@@ -164,47 +203,25 @@ export default function AddProductPage() {
               </div>
             </div>
 
-            {/* Category & Brand */}
+           {/* Reusable Category & Brand Dropdowns with Modal */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Category
-                </label>
+              <CreatableSelectModal
+                label="Category"
+                value={category}
+                options={categories}
+                placeholder="Select Category"
+                onSelect={(val) => setCategory(val)}
+                onCreateOption={handleAddCategory}
+              />
 
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-blue-500 text-gray-700 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200"
-                >
-                  <option value="">Select Category</option>
-                  <option value="Subwoofers">Subwoofers</option>
-                  <option value="Amplifiers">Amplifiers</option>
-                  <option value="Head Units">Head Units</option>
-                  <option value="Speakers">Speakers</option>
-                  <option value="Wiring & Accessories">
-                    Wiring & Accessories
-                  </option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Brand
-                </label>
-
-                <select
-                  value={brand}
-                  onChange={(e) => setBrand(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-blue-500 text-gray-700 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200"
-                >
-                  <option value="">Select Brand</option>
-                  <option value="Pioneer">Pioneer</option>
-                  <option value="JBL">JBL</option>
-                  <option value="Sony">Sony</option>
-                  <option value="Alpine">Alpine</option>
-                  <option value="Kenwood">Kenwood</option>
-                </select>
-              </div>
+              <CreatableSelectModal
+                label="Brand"
+                value={brand}
+                options={brands}
+                placeholder="Select Brand"
+                onSelect={(val) => setBrand(val)}
+                onCreateOption={handleAddBrand}
+              />
             </div>
 
             {/* Description */}
