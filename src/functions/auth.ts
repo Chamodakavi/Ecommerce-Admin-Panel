@@ -68,3 +68,41 @@ export async function authenticateUser(
 
   throw new Error("Invalid email or password. Please verify your credentials.");
 }
+
+/**
+ * Checks whether the currently signed-in user is a Store Owner.
+ * Reads directly from the user_session key in localStorage and cookies.
+ */
+export function isCurrentUserOwner(): boolean {
+  if (typeof window === "undefined") return false;
+
+  try {
+    // 1. Check localStorage['user_session']
+    const storedSession = localStorage.getItem("user_session");
+    if (storedSession) {
+      const parsed = JSON.parse(storedSession);
+      const isOwnerAccount = parsed?.account_type?.toLowerCase() === "owner";
+      const isOwnerRole = parsed?.role?.toLowerCase()?.includes("owner");
+      if (isOwnerAccount || isOwnerRole) return true;
+    }
+
+    // 2. Check document.cookie['user_session']
+    const getCookie = (name: string) => {
+      const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+      return match ? decodeURIComponent(match[2]) : null;
+    };
+
+    const cookieSession = getCookie("user_session");
+    if (cookieSession) {
+      const parsedCookie = JSON.parse(cookieSession);
+      const isOwnerAccount = parsedCookie?.account_type?.toLowerCase() === "owner";
+      const isOwnerRole = parsedCookie?.role?.toLowerCase()?.includes("owner");
+      if (isOwnerAccount || isOwnerRole) return true;
+    }
+
+    return false;
+  } catch (err) {
+    console.error("isCurrentUserOwner check error:", err);
+    return false;
+  }
+}

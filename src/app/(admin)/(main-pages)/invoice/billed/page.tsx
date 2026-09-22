@@ -19,6 +19,7 @@ import {
   InvoicePDFPayload,
   InvoiceItemData,
 } from "@/functions/invoiceGenerator";
+import { isCurrentUserOwner } from "@/functions/auth";
 
 interface StoredInvoice {
   id: string;
@@ -46,44 +47,19 @@ export default function BilledInvoicesPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedStatus, setSelectedStatus] = useState<string>("All");
 
-  // Role verification state
+  // Only store the boolean flag in state
   const [isOwner, setIsOwner] = useState<boolean>(false);
+ 
 
   // Modal State
   const [editingInvoice, setEditingInvoice] = useState<StoredInvoice | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  // Read authenticated session on mount to detect role
   useEffect(() => {
     fetchInvoices();
-    checkUserRole();
+    setIsOwner(isCurrentUserOwner());
   }, []);
-
-  const checkUserRole = () => {
-    try {
-      // 1. Check local session storage set during authentication
-      const storedRole = localStorage.getItem("user_role") || localStorage.getItem("role");
-      const storedAccountType = localStorage.getItem("account_type");
-
-      // 2. Check document cookies fallback
-      const getCookie = (name: string) => {
-        const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
-        return match ? decodeURIComponent(match[2]) : null;
-      };
-      const cookieRole = getCookie("user_role") || getCookie("role");
-
-      const role = (storedRole || storedAccountType || cookieRole || "").toLowerCase();
-
-      if (role.includes("owner")) {
-        setIsOwner(true);
-      } else {
-        setIsOwner(false);
-      }
-    } catch {
-      setIsOwner(false);
-    }
-  };
 
   const fetchInvoices = async () => {
     try {
@@ -242,12 +218,12 @@ export default function BilledInvoicesPage() {
     }
   };
 
-  // Delete Invoice Handler with strict Owner validation
+  // Delete Invoice Handler
   const handleDeleteInvoice = async () => {
     if (!editingInvoice) return;
 
     if (!isOwner) {
-      alert("Access Denied: Only the store owner has permission to delete invoices.");
+      alert("Unauthorized: Only the Store Owner can delete invoices.");
       return;
     }
 
@@ -744,10 +720,9 @@ export default function BilledInvoicesPage() {
               </div>
             </div>
 
-            {/* Modal Footer with Role-Gated Delete & Save */}
+            {/* Modal Footer with Role-Gated Delete */}
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
               <div>
-                {/* STRICT OWNER CHECK: Delete button only rendered if authenticated as owner */}
                 {isOwner && (
                   <button
                     type="button"
