@@ -3,19 +3,27 @@ import { InvoicePDFPayload } from "@/functions/invoiceGenerator";
 
 const supabase = createClient();
 
-export interface InvoiceRecord extends InvoicePDFPayload {
+// Extended payload interface to accommodate cashier tracking
+export interface InvoicePayloadWithCashier extends InvoicePDFPayload {
+  cashierName?: string;
+  cashierId?: string;
+}
+
+export interface InvoiceRecord extends InvoicePayloadWithCashier {
   id?: string;
   created_at?: string;
   updated_at?: string;
 }
 
 /**
- * Save a newly generated invoice to Supabase
+ * Save a newly generated invoice to Supabase with Cashier tracking
  */
-export async function createInvoice(invoiceData: InvoicePDFPayload) {
+export async function createInvoice(invoiceData: InvoicePayloadWithCashier) {
   const {
     invoiceNumber,
     invoiceDate,
+    cashierName,
+    cashierId,
     customerName,
     customerEmail,
     customerPhone,
@@ -36,6 +44,8 @@ export async function createInvoice(invoiceData: InvoicePDFPayload) {
       {
         invoice_number: invoiceNumber,
         invoice_date: invoiceDate,
+        cashier_name: cashierName || "Admin",
+        cashier_id: cashierId || null,
         customer_name: customerName,
         customer_email: customerEmail || null,
         customer_phone: customerPhone || null,
@@ -83,7 +93,7 @@ export async function getInvoices() {
  */
 export async function updateInvoice(
   id: string,
-  updatedData: Partial<InvoicePDFPayload>
+  updatedData: Partial<InvoicePayloadWithCashier>
 ) {
   const payload: any = {
     ...updatedData,
@@ -93,6 +103,8 @@ export async function updateInvoice(
   // Format keys to match database column names
   if (updatedData.invoiceNumber) payload.invoice_number = updatedData.invoiceNumber;
   if (updatedData.invoiceDate) payload.invoice_date = updatedData.invoiceDate;
+  if (updatedData.cashierName !== undefined) payload.cashier_name = updatedData.cashierName;
+  if (updatedData.cashierId !== undefined) payload.cashier_id = updatedData.cashierId;
   if (updatedData.customerName) payload.customer_name = updatedData.customerName;
   if (updatedData.customerEmail !== undefined) payload.customer_email = updatedData.customerEmail;
   if (updatedData.customerPhone !== undefined) payload.customer_phone = updatedData.customerPhone;
@@ -109,6 +121,8 @@ export async function updateInvoice(
   // Clean redundant camelCase keys
   delete payload.invoiceNumber;
   delete payload.invoiceDate;
+  delete payload.cashierName;
+  delete payload.cashierId;
   delete payload.customerName;
   delete payload.customerEmail;
   delete payload.customerPhone;

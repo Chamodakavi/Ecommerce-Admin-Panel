@@ -12,7 +12,9 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
   return (
     <div className="space-y-4">
       <CldUploadWidget
-        uploadPreset="upload_preset"
+        uploadPreset={
+          process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "upload_preset"
+        }
         options={{
           maxFiles: 1,
           resourceType: "image",
@@ -37,7 +39,15 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
         }}
         onSuccess={(result: any, { widget }) => {
           if (result?.info?.secure_url) {
-            onChange(result.info.secure_url);
+            const originalUrl = result.info.secure_url;
+
+            // Injects auto-format (AVIF/WebP), auto-compression, and caps resolution to 1200px
+            const optimizedUrl = originalUrl.replace(
+              "/upload/",
+              "/upload/f_auto,q_auto,w_1200,c_limit/"
+            );
+
+            onChange(optimizedUrl);
           }
           widget.close();
         }}
@@ -62,6 +72,7 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
                     src={value}
                     alt="Uploaded Product"
                     fill
+                    unoptimized
                     className="object-contain p-2"
                   />
                 </div>

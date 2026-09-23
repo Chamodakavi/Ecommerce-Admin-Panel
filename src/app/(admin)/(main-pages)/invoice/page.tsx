@@ -13,6 +13,7 @@ import {
   Building2,
   Phone,
   Mail,
+  UserCheck,
 } from "lucide-react";
 import {
   generateInvoicePDF,
@@ -30,7 +31,6 @@ interface CustomerOption {
   email: string | null;
 }
 
-// Allow quantity and unitPrice to be empty string for clean placeholders
 interface FormInvoiceItem {
   id?: string;
   name: string;
@@ -40,6 +40,10 @@ interface FormInvoiceItem {
 
 export default function GenerateInvoicePage() {
   const [isSaving, setIsSaving] = useState(false);
+
+  // Cashier / Staff Identity States
+  const [cashierName, setCashierName] = useState("");
+  const [cashierId, setCashierId] = useState("");
 
   // Customer Information States
   const [customerName, setCustomerName] = useState("");
@@ -63,7 +67,7 @@ export default function GenerateInvoicePage() {
   const [taxRate, setTaxRate] = useState<number | "">("");
   const [discount, setDiscount] = useState<number | "">("");
 
-  // Items initialized with empty string values to show placeholders
+  // Items
   const [items, setItems] = useState<FormInvoiceItem[]>([
     { id: "1", name: "", quantity: "", unitPrice: "" },
   ]);
@@ -75,9 +79,45 @@ export default function GenerateInvoicePage() {
   const nameInputRef = useRef<HTMLDivElement>(null);
   const companyInputRef = useRef<HTMLDivElement>(null);
 
+  // Read logged-in user and fetch customers on mount
   useEffect(() => {
     fetchCustomerDirectory();
+    loadActiveCashier();
   }, []);
+
+  const loadActiveCashier = () => {
+    try {
+      let activeUser: any = null;
+
+      // 1. Try reading from localStorage['user_session']
+      const stored = localStorage.getItem("user_session");
+      if (stored) {
+        activeUser = JSON.parse(stored);
+      } else {
+        // 2. Fallback to cookies
+        const match = document.cookie.match(new RegExp("(^| )user_session=([^;]+)"));
+        if (match) {
+          activeUser = JSON.parse(decodeURIComponent(match[2]));
+        }
+      }
+
+      if (activeUser) {
+        const displayName =
+          activeUser.display_name ||
+          `${activeUser.first_name || ""} ${activeUser.last_name || ""}`.trim() ||
+          activeUser.email ||
+          "Staff Member";
+
+        setCashierName(displayName);
+        setCashierId(activeUser.id || "");
+      } else {
+        setCashierName("Admin / Cashier");
+      }
+    } catch (err) {
+      console.error("Error reading cashier identity:", err);
+      setCashierName("Admin / Cashier");
+    }
+  };
 
   const fetchCustomerDirectory = async () => {
     try {
@@ -88,7 +128,6 @@ export default function GenerateInvoicePage() {
     }
   };
 
-  // Filter customers when typing name or company
   const handleFilterCustomers = (query: string, field: "name" | "company") => {
     if (field === "name") setCustomerName(query);
     if (field === "company") setCustomerCompany(query);
@@ -110,7 +149,6 @@ export default function GenerateInvoicePage() {
     }
   };
 
-  // Auto-fill all customer details on selection
   const handleSelectCustomer = (customer: CustomerOption) => {
     setCustomerName(customer.name || "");
     setCustomerCompany(customer.company || "");
@@ -120,7 +158,6 @@ export default function GenerateInvoicePage() {
     setFilteredCustomers([]);
   };
 
-  // Reset Customer Data fields
   const handleResetCustomerData = () => {
     setCustomerName("");
     setCustomerCompany("");
@@ -130,7 +167,6 @@ export default function GenerateInvoicePage() {
     setActiveDropdown(null);
   };
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -150,7 +186,6 @@ export default function GenerateInvoicePage() {
     };
   }, []);
 
-  // Safe numerical calculations
   const numTaxRate = Number(taxRate) || 0;
   const numDiscount = Number(discount) || 0;
   const numPaidAmount = Number(paidAmount) || 0;
@@ -194,7 +229,6 @@ export default function GenerateInvoicePage() {
           return { ...item, name: value };
         }
 
-        // Keep empty string if user clears the input
         if (value === "") {
           return { ...item, [field]: "" };
         }
@@ -215,7 +249,6 @@ export default function GenerateInvoicePage() {
       ? `${customerName.trim()} (${customerCompany.trim()})`
       : customerName.trim();
 
-    // Map items to strict numeric InvoiceItemData format
     const formattedItems: InvoiceItemData[] = items.map((item) => ({
       id: item.id,
       name: item.name,
@@ -223,9 +256,11 @@ export default function GenerateInvoicePage() {
       unitPrice: Number(item.unitPrice) || 0,
     }));
 
-    const payload: InvoicePDFPayload = {
+    const payload: InvoicePDFPayload & { cashierName?: string; cashierId?: string } = {
       invoiceNumber,
       invoiceDate,
+      cashierName,
+      cashierId,
       customerName: formattedCustomerName,
       customerEmail,
       customerPhone,
@@ -258,8 +293,8 @@ export default function GenerateInvoicePage() {
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="space-y-8 p-6">
-          {/* Top Meta Info */}
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {/* Top Meta Info (Invoice #, Date, Cashier) */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <div>
               <label className="mb-2 block text-md font-semibold text-gray-700 dark:text-gray-300">
                 Invoice Number
@@ -271,6 +306,7 @@ export default function GenerateInvoicePage() {
                 className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2 text-md text-gray-800 focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
               />
             </div>
+
             <div>
               <label className="mb-2 block text-md font-semibold text-gray-700 dark:text-gray-300">
                 Invoice Date
@@ -280,6 +316,21 @@ export default function GenerateInvoicePage() {
                 value={invoiceDate}
                 onChange={(e) => setInvoiceDate(e.target.value)}
                 className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-md text-gray-800 focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              />
+            </div>
+
+            {/* Cashier / Issuer Field */}
+            <div>
+              <label className="mb-2 flex items-center gap-1.5 text-md font-semibold text-gray-700 dark:text-gray-300">
+                <UserCheck className="h-4 w-4 text-blue-600" />
+                Cashier / Issued By
+              </label>
+              <input
+                type="text"
+                readOnly
+                value={cashierName}
+                title="Current logged-in cashier"
+                className="w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-100 px-3.5 py-2 text-md font-medium text-gray-700 select-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
               />
             </div>
           </div>

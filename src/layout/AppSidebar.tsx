@@ -68,7 +68,7 @@ const allNavItems: NavItem[] = [
     subItems: [
       { name: "My Profile", path: "/profile", pro: false },
       { name: "Co Worker Profile", path: "/profile/co-workers", pro: false },
-      { name: "Web Profile", path: "/web-profile", pro: false },
+      { name: "Web Profile", path: "/profile/web-profile", pro: false },
     ],
   },
   {

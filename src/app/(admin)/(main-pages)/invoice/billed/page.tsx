@@ -12,6 +12,7 @@ import {
   Plus,
   Trash2,
   Save,
+  UserCheck,
 } from "lucide-react";
 import { getInvoices, updateInvoice, deleteInvoice } from "@/functions/invoices";
 import {
@@ -25,6 +26,8 @@ interface StoredInvoice {
   id: string;
   invoice_number: string;
   invoice_date: string;
+  cashier_name?: string | null;
+  cashier_id?: string | null;
   customer_name: string;
   customer_email: string | null;
   customer_phone: string | null;
@@ -49,7 +52,6 @@ export default function BilledInvoicesPage() {
 
   // Only store the boolean flag in state
   const [isOwner, setIsOwner] = useState<boolean>(false);
- 
 
   // Modal State
   const [editingInvoice, setEditingInvoice] = useState<StoredInvoice | null>(null);
@@ -74,15 +76,16 @@ export default function BilledInvoicesPage() {
     }
   };
 
-  // Search & Filter Logic
+  // Search & Filter Logic (includes cashier_name)
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
+      const q = searchQuery.toLowerCase();
       const matchesSearch =
-        inv.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (inv.customer_email &&
-          inv.customer_email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (inv.customer_phone && inv.customer_phone.includes(searchQuery));
+        inv.invoice_number.toLowerCase().includes(q) ||
+        inv.customer_name.toLowerCase().includes(q) ||
+        (inv.cashier_name && inv.cashier_name.toLowerCase().includes(q)) ||
+        (inv.customer_email && inv.customer_email.toLowerCase().includes(q)) ||
+        (inv.customer_phone && inv.customer_phone.includes(q));
 
       const matchesStatus =
         selectedStatus === "All" || inv.payment_status === selectedStatus;
@@ -193,6 +196,8 @@ export default function BilledInvoicesPage() {
       const updated = await updateInvoice(editingInvoice.id, {
         invoiceNumber: editingInvoice.invoice_number,
         invoiceDate: editingInvoice.invoice_date,
+        cashierName: editingInvoice.cashier_name || undefined,
+        cashierId: editingInvoice.cashier_id || undefined,
         customerName: editingInvoice.customer_name,
         customerEmail: editingInvoice.customer_email || undefined,
         customerPhone: editingInvoice.customer_phone || undefined,
@@ -247,9 +252,10 @@ export default function BilledInvoicesPage() {
   // Download PDF Handler
   const handleDownloadPDF = (e: React.MouseEvent, inv: StoredInvoice) => {
     e.stopPropagation();
-    const payload: InvoicePDFPayload = {
+    const payload: InvoicePDFPayload & { cashierName?: string } = {
       invoiceNumber: inv.invoice_number,
       invoiceDate: inv.invoice_date,
+      cashierName: inv.cashier_name || undefined,
       customerName: inv.customer_name,
       customerEmail: inv.customer_email || undefined,
       customerPhone: inv.customer_phone || undefined,
@@ -302,7 +308,7 @@ export default function BilledInvoicesPage() {
               </span>
               <input
                 type="text"
-                placeholder="Search invoice, client, phone..."
+                placeholder="Search invoice, client, cashier, phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-4 text-xs text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
@@ -345,6 +351,7 @@ export default function BilledInvoicesPage() {
               <tr>
                 <th className="px-5 py-3.5 font-semibold">Invoice No</th>
                 <th className="px-5 py-3.5 font-semibold">Customer</th>
+                {/* <th className="px-5 py-3.5 font-semibold">Billed By</th> */}
                 <th className="px-5 py-3.5 font-semibold">Date</th>
                 <th className="px-5 py-3.5 font-semibold">Total Amount</th>
                 <th className="px-5 py-3.5 font-semibold">Status</th>
@@ -354,13 +361,13 @@ export default function BilledInvoicesPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-500">
+                  <td colSpan={7} className="py-12 text-center text-gray-500">
                     Loading invoices...
                   </td>
                 </tr>
               ) : filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={7} className="py-12 text-center text-gray-500 dark:text-gray-400">
                     No matching billed invoices found.
                   </td>
                 </tr>
@@ -382,6 +389,13 @@ export default function BilledInvoicesPage() {
                         {inv.customer_phone || inv.customer_email || "No contact"}
                       </div>
                     </td>
+                    {/* Billed By / Cashier Column */}
+                    {/* <td className="px-5 py-4">
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                        <UserCheck className="h-3 w-3 text-blue-600" />
+                        {inv.cashier_name || "Admin"}
+                      </span>
+                    </td> */}
                     <td className="px-5 py-4 text-gray-600 dark:text-gray-300">
                       {inv.invoice_date}
                     </td>
@@ -433,10 +447,16 @@ export default function BilledInvoicesPage() {
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-4 dark:border-gray-800">
               <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                  Edit Invoice #{editingInvoice.invoice_number}
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                    Edit Invoice #{editingInvoice.invoice_number}
+                  </h3>
+                  <span className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    <UserCheck className="h-3 w-3" />
+                    Billed by: {editingInvoice.cashier_name || "Admin"}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   Update customer data, line items, or payment balance.
                 </p>
               </div>
@@ -518,7 +538,7 @@ export default function BilledInvoicesPage() {
                 </div>
               </div>
 
-              {/* Items Table */}
+              {/* Line Items Table */}
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
                   Line Items
