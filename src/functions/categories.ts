@@ -24,3 +24,19 @@ export async function createCategory(cat_name: string): Promise<string> {
   if (error) throw error;
   return data.cat_name;
 }
+
+export async function deleteCategory(categoryName: string) {
+
+  const supabase = createClient();
+  
+  const { error } = await supabase
+    .from("categories")
+    .delete()
+    .eq("cat_name", categoryName);
+
+  if (error) {
+    console.error("deleteCategory error:", error);
+    throw error;
+  }
+  return true;
+}

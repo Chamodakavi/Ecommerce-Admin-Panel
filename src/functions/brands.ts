@@ -24,3 +24,20 @@ export async function createBrand(brand_name: string): Promise<string> {
   if (error) throw error;
   return data.brand_name;
 }
+
+export async function deleteBrand(brandName: string) {
+
+   const supabase = createClient();
+
+
+  const { error } = await supabase
+    .from("brands")
+    .delete()
+    .eq("brand_name", brandName);
+
+  if (error) {
+    console.error("deleteBrand error:", error);
+    throw error;
+  }
+  return true;
+}

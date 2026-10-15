@@ -82,18 +82,21 @@ export async function getStorefrontConfig(): Promise<StorefrontPayload> {
  * Save storefront settings (Only allowed if isCurrentUserOwner() is true)
  */
 export async function saveStorefrontConfig(payload: StorefrontPayload): Promise<void> {
-  // Check user session
   if (!isCurrentUserOwner()) {
     throw new Error("Permission denied. Only the Store Owner can edit storefront settings.");
   }
+
+  // Ensure clean, independent array copies
+  const formattedSlides = Array.isArray(payload.slides) ? [...payload.slides] : [];
+  const formattedPromos = Array.isArray(payload.promos) ? [...payload.promos] : [];
 
   const { error } = await supabase
     .from("storefront_settings")
     .upsert(
       {
         id: "default",
-        carousel_slides: payload.slides,
-        promo_cards: payload.promos,
+        carousel_slides: formattedSlides,
+        promo_cards: formattedPromos,
         promo_banners: payload.promoBanners,
         countdown_config: payload.countdownConfig,
         general_config: payload.generalConfig,

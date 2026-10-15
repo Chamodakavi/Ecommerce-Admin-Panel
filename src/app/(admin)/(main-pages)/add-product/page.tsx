@@ -5,9 +5,9 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import ImageUpload from "@/components/common/ImageUpload";
 import { createProduct } from "@/functions/products";
 import CreatableSelectModal from "@/components/common/CreatableSelectModal";
-import { getCategories, createCategory } from "@/functions/categories";
-import { getBrands, createBrand } from "@/functions/brands";
-
+import { getCategories, createCategory, deleteCategory } from "@/functions/categories";
+import { getBrands, createBrand, deleteBrand } from "@/functions/brands";
+import { Trash2 } from "lucide-react";
 
 export default function AddProductPage() {
   // 1. Form state variables
@@ -17,7 +17,13 @@ export default function AddProductPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [category, setCategory] = useState("");
 
-useEffect(() => {
+  const [brands, setBrands] = useState<string[]>([]);
+  const [brand, setBrand] = useState("");
+
+  const [deletingCategory, setDeletingCategory] = useState(false);
+  const [deletingBrand, setDeletingBrand] = useState(false);
+
+  useEffect(() => {
     async function loadSelectOptions() {
       try {
         const [categoriesData, brandsData] = await Promise.all([
@@ -34,11 +40,6 @@ useEffect(() => {
     loadSelectOptions();
   }, []);
 
-
-// Brands state
-  const [brands, setBrands] = useState<string[]>([]);
-  const [brand, setBrand] = useState("");
-
   // Separate bought/cost price and selling price
   const [costPrice, setCostPrice] = useState<number | "">("");
   const [sellPrice, setSellPrice] = useState<number | "">("");
@@ -49,44 +50,79 @@ useEffect(() => {
 
   // Maximum 3 Cloudinary image URLs
   const [imageUrls, setImageUrls] = useState<string[]>([]);
-
   const [loading, setLoading] = useState(false);
 
   // Counter handlers
-  const handleIncrement = () =>
-    setStockQuantity((prev) => prev + 1);
+  const handleIncrement = () => setStockQuantity((prev) => prev + 1);
+  const handleDecrement = () => setStockQuantity((prev) => (prev > 0 ? prev - 1 : 0));
 
-  const handleDecrement = () =>
-    setStockQuantity((prev) => (prev > 0 ? prev - 1 : 0));
+  // Category dynamic handlers
+  const handleAddCategory = async (newCat: string) => {
+    const savedName = await createCategory(newCat);
+    setCategories((prev) => [...prev, savedName]);
+  };
 
-  // Category and Brand dynamic creators
-const handleAddCategory = async (newCat: string) => {
-  const savedName = await createCategory(newCat);
-  setCategories((prev) => [...prev, savedName]);
-};
+  const handleDeleteSelectedCategory = async () => {
+    if (!category) return;
+    const confirmDelete = window.confirm(
+      `Are you sure you want to permanently delete category "${category}" from database?`
+    );
+    if (!confirmDelete) return;
 
-const handleAddBrand = async (newBrand: string) => {
-  const savedBrand = await createBrand(newBrand);
-  setBrands((prev) => [...prev, savedBrand]);
-  return savedBrand;
-};
+    try {
+      setDeletingCategory(true);
+      await deleteCategory(category);
+      setCategories((prev) => prev.filter((item) => item !== category));
+      setCategory("");
+      alert("Category deleted successfully.");
+    } catch (err: any) {
+      alert(`Failed to delete category: ${err.message || err}`);
+    } finally {
+      setDeletingCategory(false);
+    }
+  };
+
+  // Brand dynamic handlers
+  const handleAddBrand = async (newBrand: string) => {
+    const savedBrand = await createBrand(newBrand);
+    setBrands((prev) => [...prev, savedBrand]);
+    return savedBrand;
+  };
+
+  const handleDeleteSelectedBrand = async () => {
+    if (!brand) return;
+    const confirmDelete = window.confirm(
+      `Are you sure you want to permanently delete brand "${brand}" from database?`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      setDeletingBrand(true);
+      await deleteBrand(brand);
+      setBrands((prev) => prev.filter((item) => item !== brand));
+      setBrand("");
+      alert("Brand deleted successfully.");
+    } catch (err: any) {
+      alert(`Failed to delete brand: ${err.message || err}`);
+    } finally {
+      setDeletingBrand(false);
+    }
+  };
 
   // Add/replace an image in a specific slot
   const handleImageChange = (index: number, url: string) => {
     setImageUrls((prev) => {
       const updated = [...prev];
-
       if (url) {
         updated[index] = url;
       } else {
         updated.splice(index, 1);
       }
-
       return updated.filter(Boolean).slice(0, 3);
     });
   };
 
-  // Delete an image so another image can be uploaded
+  // Delete an image
   const handleDeleteImage = (index: number) => {
     setImageUrls((prev) => prev.filter((_, i) => i !== index));
   };
@@ -96,9 +132,7 @@ const handleAddBrand = async (newBrand: string) => {
     e.preventDefault();
 
     if (!customId || !name || costPrice === "" || sellPrice === "") {
-      alert(
-        "Please fill in Product ID, Name, Bought Price, and Selling Price."
-      );
+      alert("Please fill in Product ID, Name, Bought Price, and Selling Price.");
       return;
     }
 
@@ -120,25 +154,17 @@ const handleAddBrand = async (newBrand: string) => {
         name: name,
         category: category,
         brand: brand,
-
-        // Separate prices
         cost_price: Number(costPrice),
         selling_price: Number(sellPrice),
-
         stock_quantity: Number(stockQuantity),
         availability_status: availability,
         description: description,
-
-        // Save all images
         image_urls: imageUrls.slice(0, 3),
-
-        // First image as cover image
         image_url: imageUrls[0],
       });
 
       alert("Product successfully added to inventory!");
 
-      // Reset form fields after successful save
       setCustomId("");
       setName("");
       setCategory("");
@@ -161,7 +187,6 @@ const handleAddBrand = async (newBrand: string) => {
       <PageBreadcrumb pageTitle="Add Products" />
 
       <form onSubmit={handleSubmit} className="space-y-6">
-
         {/* SECTION 1: Product Basic Details */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-white/[0.05] dark:bg-white/[0.03]">
           <h3 className="text-base font-semibold text-gray-800 dark:text-white/90 mb-6">
@@ -169,14 +194,12 @@ const handleAddBrand = async (newBrand: string) => {
           </h3>
 
           <div className="space-y-4">
-
             {/* Custom Product ID & Name */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Custom Product ID (SKU) *
                 </label>
-
                 <input
                   type="text"
                   value={customId}
@@ -191,7 +214,6 @@ const handleAddBrand = async (newBrand: string) => {
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Product Name *
                 </label>
-
                 <input
                   type="text"
                   value={name}
@@ -203,25 +225,63 @@ const handleAddBrand = async (newBrand: string) => {
               </div>
             </div>
 
-           {/* Reusable Category & Brand Dropdowns with Modal */}
+            {/* Category & Brand with Delete Action Buttons */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <CreatableSelectModal
-                label="Category"
-                value={category}
-                options={categories}
-                placeholder="Select Category"
-                onSelect={(val) => setCategory(val)}
-                onCreateOption={handleAddCategory}
-              />
+              {/* Category */}
+              <div>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <CreatableSelectModal
+                      label="Category"
+                      value={category}
+                      options={categories}
+                      placeholder="Select Category"
+                      onSelect={(val) => setCategory(val)}
+                      onCreateOption={handleAddCategory}
+                    />
+                  </div>
 
-              <CreatableSelectModal
-                label="Brand"
-                value={brand}
-                options={brands}
-                placeholder="Select Brand"
-                onSelect={(val) => setBrand(val)}
-                onCreateOption={handleAddBrand}
-              />
+                  {category && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteSelectedCategory}
+                      disabled={deletingCategory}
+                      title={`Delete "${category}" from database`}
+                      className="h-[42px] px-3 inline-flex items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 transition dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Brand */}
+              <div>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <CreatableSelectModal
+                      label="Brand"
+                      value={brand}
+                      options={brands}
+                      placeholder="Select Brand"
+                      onSelect={(val) => setBrand(val)}
+                      onCreateOption={handleAddBrand}
+                    />
+                  </div>
+
+                  {brand && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteSelectedBrand}
+                      disabled={deletingBrand}
+                      title={`Delete "${brand}" from database`}
+                      className="h-[42px] px-3 inline-flex items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 transition dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Description */}
@@ -229,7 +289,6 @@ const handleAddBrand = async (newBrand: string) => {
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Description / Technical Specs
               </label>
-
               <textarea
                 rows={4}
                 value={description}
@@ -238,7 +297,6 @@ const handleAddBrand = async (newBrand: string) => {
                 className="w-full px-3.5 py-2.5 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-blue-500 text-gray-700 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200 resize-y"
               />
             </div>
-
           </div>
         </div>
 
@@ -249,13 +307,10 @@ const handleAddBrand = async (newBrand: string) => {
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
-            {/* Bought Price */}
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Bought Price *
               </label>
-
               <input
                 type="number"
                 min="0"
@@ -263,9 +318,7 @@ const handleAddBrand = async (newBrand: string) => {
                 value={costPrice}
                 onChange={(e) =>
                   setCostPrice(
-                    e.target.value === ""
-                      ? ""
-                      : Number(e.target.value)
+                    e.target.value === "" ? "" : Number(e.target.value)
                   )
                 }
                 placeholder="100.00"
@@ -274,12 +327,10 @@ const handleAddBrand = async (newBrand: string) => {
               />
             </div>
 
-            {/* Selling Price */}
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Selling Price *
               </label>
-
               <input
                 type="number"
                 min="0"
@@ -287,9 +338,7 @@ const handleAddBrand = async (newBrand: string) => {
                 value={sellPrice}
                 onChange={(e) =>
                   setSellPrice(
-                    e.target.value === ""
-                      ? ""
-                      : Number(e.target.value)
+                    e.target.value === "" ? "" : Number(e.target.value)
                   )
                 }
                 placeholder="149.99"
@@ -298,12 +347,10 @@ const handleAddBrand = async (newBrand: string) => {
               />
             </div>
 
-            {/* Stock Quantity */}
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Stock Quantity
               </label>
-
               <div className="flex items-center w-full border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">
                 <button
                   type="button"
@@ -312,17 +359,13 @@ const handleAddBrand = async (newBrand: string) => {
                 >
                   &#8722;
                 </button>
-
                 <input
                   type="number"
                   min="0"
                   value={stockQuantity}
-                  onChange={(e) =>
-                    setStockQuantity(Number(e.target.value))
-                  }
+                  onChange={(e) => setStockQuantity(Number(e.target.value))}
                   className="w-full text-center text-xs py-2.5 bg-white border-none outline-none dark:bg-gray-900 dark:text-white"
                 />
-
                 <button
                   type="button"
                   onClick={handleIncrement}
@@ -333,12 +376,10 @@ const handleAddBrand = async (newBrand: string) => {
               </div>
             </div>
 
-            {/* Availability */}
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Availability Status
               </label>
-
               <select
                 value={availability}
                 onChange={(e) => setAvailability(e.target.value)}
@@ -349,7 +390,6 @@ const handleAddBrand = async (newBrand: string) => {
                 <option value="Pre-Order">Pre-Order</option>
               </select>
             </div>
-
           </div>
         </div>
 
@@ -360,25 +400,21 @@ const handleAddBrand = async (newBrand: string) => {
               <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
                 Product Images
               </h3>
-
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Upload up to 3 images. You can remove an image and upload another one.
               </p>
             </div>
-
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
               {imageUrls.length}/3
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-
-            {/* Image Slot 1 */}
+            {/* Slot 1 */}
             <div className="relative">
               <div className="mb-2 text-xs font-medium text-gray-700 dark:text-gray-300">
                 Image 1 {imageUrls[0] ? "(Cover)" : ""}
               </div>
-
               {imageUrls[0] ? (
                 <div className="relative">
                   <img
@@ -386,7 +422,6 @@ const handleAddBrand = async (newBrand: string) => {
                     alt="Product image 1"
                     className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
                   />
-
                   <button
                     type="button"
                     onClick={() => handleDeleteImage(0)}
@@ -403,12 +438,11 @@ const handleAddBrand = async (newBrand: string) => {
               )}
             </div>
 
-            {/* Image Slot 2 */}
+            {/* Slot 2 */}
             <div className="relative">
               <div className="mb-2 text-xs font-medium text-gray-700 dark:text-gray-300">
                 Image 2
               </div>
-
               {imageUrls[1] ? (
                 <div className="relative">
                   <img
@@ -416,7 +450,6 @@ const handleAddBrand = async (newBrand: string) => {
                     alt="Product image 2"
                     className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
                   />
-
                   <button
                     type="button"
                     onClick={() => handleDeleteImage(1)}
@@ -433,12 +466,11 @@ const handleAddBrand = async (newBrand: string) => {
               )}
             </div>
 
-            {/* Image Slot 3 */}
+            {/* Slot 3 */}
             <div className="relative">
               <div className="mb-2 text-xs font-medium text-gray-700 dark:text-gray-300">
                 Image 3
               </div>
-
               {imageUrls[2] ? (
                 <div className="relative">
                   <img
@@ -446,7 +478,6 @@ const handleAddBrand = async (newBrand: string) => {
                     alt="Product image 3"
                     className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
                   />
-
                   <button
                     type="button"
                     onClick={() => handleDeleteImage(2)}
@@ -462,7 +493,6 @@ const handleAddBrand = async (newBrand: string) => {
                 />
               )}
             </div>
-
           </div>
         </div>
 
@@ -476,7 +506,6 @@ const handleAddBrand = async (newBrand: string) => {
             {loading ? "Publishing..." : "Publish Product"}
           </button>
         </div>
-
       </form>
     </div>
   );
