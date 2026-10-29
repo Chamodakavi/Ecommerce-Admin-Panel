@@ -20,6 +20,7 @@ import {
   updateProduct,
   deleteProduct,
 } from "@/functions/products";
+import { isCurrentUserOwner } from "@/functions/auth";
 
 type ImageSlots = [
   string | null,
@@ -61,6 +62,16 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null);
+
+  // =========================================================
+  // RBAC
+  // =========================================================
+
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    setIsOwner(isCurrentUserOwner());
+  }, []);
 
   // =========================================================
   // Search / Selection
@@ -1249,9 +1260,14 @@ brand: brand || undefined,
                     <div>
                       <label className="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-300">
                         Stock Quantity
+                        {!isOwner && (
+                          <span className="ml-1.5 text-[10px] font-normal text-amber-600 dark:text-amber-400">
+                            (Admin only)
+                          </span>
+                        )}
                       </label>
 
-                      <div className="flex overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                      <div className={`flex overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 ${!isOwner ? "opacity-60" : ""}`}>
 
                         <button
                           type="button"
@@ -1267,7 +1283,8 @@ brand: brand || undefined,
                                 )
                             )
                           }
-                          className="bg-gray-50 px-3 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300"
+                          disabled={!isOwner}
+                          className="bg-gray-50 px-3 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           −
                         </button>
@@ -1292,7 +1309,8 @@ brand: brand || undefined,
                               )
                             )
                           }
-                          className="w-full border-none bg-white text-center text-xs outline-none dark:bg-gray-900 dark:text-white"
+                          disabled={!isOwner}
+                          className="w-full border-none bg-white text-center text-xs outline-none dark:bg-gray-900 dark:text-white disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800"
                         />
 
                         <button
@@ -1306,7 +1324,8 @@ brand: brand || undefined,
                                 1
                             )
                           }
-                          className="bg-gray-50 px-3 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300"
+                          disabled={!isOwner}
+                          className="bg-gray-50 px-3 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           +
                         </button>
@@ -1514,20 +1533,22 @@ brand: brand || undefined,
 
                 <div className="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-gray-800">
 
-                  <button
-                    type="button"
-                    onClick={
-                      handleDeleteProduct
-                    }
-                    disabled={
-                      isUpdating
-                    }
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400"
-                  >
-                    <Trash2 className="h-4 w-4" />
+                  {isOwner && (
+                    <button
+                      type="button"
+                      onClick={
+                        handleDeleteProduct
+                      }
+                      disabled={
+                        isUpdating
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400"
+                    >
+                      <Trash2 className="h-4 w-4" />
 
-                    Delete Product
-                  </button>
+                      Delete Product
+                    </button>
+                  )}
 
                   <div className="flex items-center gap-2">
 

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import ImageUpload from "@/components/common/ImageUpload";
 import { createProduct } from "@/functions/products";
+import { isCurrentUserOwner } from "@/functions/auth";
 import CreatableSelectModal from "@/components/common/CreatableSelectModal";
 import { getCategories, createCategory, deleteCategory } from "@/functions/categories";
 import { getBrands, createBrand, deleteBrand } from "@/functions/brands";
@@ -22,6 +23,12 @@ export default function AddProductPage() {
 
   const [deletingCategory, setDeletingCategory] = useState(false);
   const [deletingBrand, setDeletingBrand] = useState(false);
+
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    setIsOwner(isCurrentUserOwner());
+  }, []);
 
   useEffect(() => {
     async function loadSelectOptions() {
@@ -350,12 +357,18 @@ export default function AddProductPage() {
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Stock Quantity
+                {!isOwner && (
+                  <span className="ml-1.5 text-[10px] font-normal text-amber-600 dark:text-amber-400">
+                    (Admin only)
+                  </span>
+                )}
               </label>
-              <div className="flex items-center w-full border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">
+              <div className={`flex items-center w-full border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700 ${!isOwner ? "opacity-60" : ""}`}>
                 <button
                   type="button"
                   onClick={handleDecrement}
-                  className="px-4 py-2.5 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition"
+                  disabled={!isOwner}
+                  className="px-4 py-2.5 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   &#8722;
                 </button>
@@ -364,12 +377,14 @@ export default function AddProductPage() {
                   min="0"
                   value={stockQuantity}
                   onChange={(e) => setStockQuantity(Number(e.target.value))}
-                  className="w-full text-center text-xs py-2.5 bg-white border-none outline-none dark:bg-gray-900 dark:text-white"
+                  disabled={!isOwner}
+                  className="w-full text-center text-xs py-2.5 bg-white border-none outline-none dark:bg-gray-900 dark:text-white disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800"
                 />
                 <button
                   type="button"
                   onClick={handleIncrement}
-                  className="px-4 py-2.5 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition"
+                  disabled={!isOwner}
+                  className="px-4 py-2.5 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   &#43;
                 </button>
