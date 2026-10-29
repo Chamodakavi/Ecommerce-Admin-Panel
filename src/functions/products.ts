@@ -172,6 +172,7 @@ export async function deleteProduct(
 
 /**
  * Reduce a product's stock quantity by a given amount (used when an invoice is issued)
+ * Throws an error if there's insufficient stock
  */
 export async function reduceProductStock(
   productId: string,
@@ -179,7 +180,7 @@ export async function reduceProductStock(
 ) {
   const { data: current, error: fetchError } = await supabase
     .from("products")
-    .select("stock_quantity")
+    .select("stock_quantity, name")
     .eq("id", productId)
     .single();
 
@@ -188,7 +189,14 @@ export async function reduceProductStock(
     throw fetchError || new Error("Product not found");
   }
 
-  const nextStock = Math.max(0, (current.stock_quantity || 0) - quantity);
+  const availableStock = current.stock_quantity || 0;
+  if (availableStock < quantity) {
+    throw new Error(
+      `Insufficient stock for ${current.name || "product"}. Only ${availableStock} available, requested ${quantity}.`
+    );
+  }
+
+  const nextStock = availableStock - quantity;
   const { error } = await supabase
     .from("products")
     .update({

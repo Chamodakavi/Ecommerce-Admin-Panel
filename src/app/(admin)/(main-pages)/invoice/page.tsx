@@ -23,6 +23,7 @@ import {
 import { createInvoice } from "@/functions/invoices";
 import { getCustomers } from "@/functions/customers";
 import { getProducts, reduceProductStock } from "@/functions/products";
+import { createClient } from "@/utils/supabase/client";
 
 interface CustomerOption {
   id: string;
@@ -369,8 +370,38 @@ export default function GenerateInvoicePage() {
       remainingBalance,
     };
 
+    // Create supabase client for stock checks
+    const supabase = createClient();
+
     try {
       setIsSaving(true);
+
+      // Pre-validate stock for all items with product_id before creating invoice
+      const stockErrors: string[] = [];
+      for (const item of items) {
+        if (item.product_id && item.name.trim() && (Number(item.quantity) || 0) > 0) {
+          const { data: product, error: stockCheckError } = await supabase
+            .from("products")
+            .select("stock_quantity, name")
+            .eq("id", item.product_id)
+            .single();
+          if (stockCheckError || !product) {
+            stockErrors.push(`${item.name}: Product not found`);
+          } else {
+            const availableStock = product.stock_quantity || 0;
+            const requestedQty = Number(item.quantity) || 0;
+            if (availableStock < requestedQty) {
+              stockErrors.push(`${product.name}: Only ${availableStock} available, requested ${requestedQty}`);
+            }
+          }
+        }
+      }
+
+      if (stockErrors.length > 0) {
+        alert("Cannot create invoice - Insufficient stock:\n" + stockErrors.join("\n"));
+        return;
+      }
+
       await createInvoice(payload);
 
       // Reduce stock for each item that has a product_id
@@ -380,7 +411,7 @@ export default function GenerateInvoicePage() {
             await reduceProductStock(item.product_id, Number(item.quantity) || 0);
           } catch (stockErr) {
             console.error(`Failed to reduce stock for ${item.name}:`, stockErr);
-            // Don't fail the whole invoice if stock reduction fails
+            // This shouldn't happen since we pre-validated, but log if it does
           }
         }
       }
