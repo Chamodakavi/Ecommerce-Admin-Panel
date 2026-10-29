@@ -169,3 +169,38 @@ export async function deleteProduct(
 
   return true;
 }
+
+/**
+ * Reduce a product's stock quantity by a given amount (used when an invoice is issued)
+ */
+export async function reduceProductStock(
+  productId: string,
+  quantity: number
+) {
+  const { data: current, error: fetchError } = await supabase
+    .from("products")
+    .select("stock_quantity")
+    .eq("id", productId)
+    .single();
+
+  if (fetchError || !current) {
+    console.error("reduceProductStock: unable to load current stock:", fetchError);
+    throw fetchError || new Error("Product not found");
+  }
+
+  const nextStock = Math.max(0, (current.stock_quantity || 0) - quantity);
+  const { error } = await supabase
+    .from("products")
+    .update({
+      stock_quantity: nextStock,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", productId);
+
+  if (error) {
+    console.error("reduceProductStock error:", error);
+    throw error;
+  }
+
+  return nextStock;
+}

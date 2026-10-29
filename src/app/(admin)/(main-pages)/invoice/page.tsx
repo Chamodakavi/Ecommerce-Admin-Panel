@@ -22,7 +22,7 @@ import {
 } from "@/functions/invoiceGenerator";
 import { createInvoice } from "@/functions/invoices";
 import { getCustomers } from "@/functions/customers";
-import { getProducts } from "@/functions/products";
+import { getProducts, reduceProductStock } from "@/functions/products";
 
 interface CustomerOption {
   id: string;
@@ -41,6 +41,7 @@ interface ProductOption {
 
 interface FormInvoiceItem {
   id?: string;
+  product_id?: string | null;
   name: string;
   quantity: number | "";
   unitPrice: number | "";
@@ -90,7 +91,7 @@ export default function GenerateInvoicePage() {
   // Product Directory (for Item autocomplete)
   const [allProducts, setAllProducts] = useState<ProductOption[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<ProductOption[]>([]);
-  const [activeItemDropdown, setActiveItemDropdown] = useState<boolean>(false);
+  const [activeItemDropdownId, setActiveItemDropdownId] = useState<string | null>(null);
   const itemInputRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Read logged-in user and fetch customers on mount
@@ -207,10 +208,10 @@ export default function GenerateInvoicePage() {
         p.name.toLowerCase().includes(trimmed)
       );
       setFilteredProducts(matches);
-      setActiveItemDropdown(true);
+      setActiveItemDropdownId(id || null);
     } else {
       setFilteredProducts([]);
-      setActiveItemDropdown(false);
+      setActiveItemDropdownId(null);
     }
   };
 
@@ -220,6 +221,7 @@ export default function GenerateInvoicePage() {
         if (item.id !== id) return item;
         return {
           ...item,
+          product_id: product.id,
           name: product.name,
           unitPrice:
             product.selling_price !== null && product.selling_price !== undefined
@@ -229,7 +231,7 @@ export default function GenerateInvoicePage() {
       })
     );
     setFilteredProducts([]);
-    setActiveItemDropdown(false);
+    setActiveItemDropdownId(null);
   };
 
   useEffect(() => {
@@ -248,7 +250,7 @@ export default function GenerateInvoicePage() {
         (ref) => !ref || !ref.contains(target)
       );
       if (clickedOutsideItem) {
-        setActiveItemDropdown(false);
+        setActiveItemDropdownId(null);
       }
     };
 
@@ -278,8 +280,9 @@ export default function GenerateInvoicePage() {
   const handleAddItem = () => {
     setItems([
       ...items,
-      { id: Date.now().toString(), name: "", quantity: "", unitPrice: "" },
+      { id: Date.now().toString(), product_id: null, name: "", quantity: "", unitPrice: "" },
     ]);
+    setActiveItemDropdownId(null);
   };
 
   const handleRemoveItem = (id?: string) => {
@@ -311,25 +314,44 @@ export default function GenerateInvoicePage() {
     );
   };
 
+  const generateNewInvoiceNumber = () => {
+    const now = new Date();
+    const timestamp = now.getTime().toString().slice(-8);
+    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return `INV-${timestamp}-${random}`;
+  };
+
   const handleGenerateAndSave = async () => {
     if (!customerName.trim()) {
       alert("Please enter the customer's name before proceeding.");
       return;
     }
 
+    // Validate at least one item has name and quantity
+    const hasValidItem = items.some(
+      (item) => item.name.trim() && (Number(item.quantity) || 0) > 0
+    );
+    if (!hasValidItem) {
+      alert("Please add at least one item with name and quantity.");
+      return;
+    }
+
+    const currentInvoiceNumber = generateNewInvoiceNumber();
     const formattedCustomerName = customerCompany.trim()
       ? `${customerName.trim()} (${customerCompany.trim()})`
       : customerName.trim();
 
-    const formattedItems: InvoiceItemData[] = items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      quantity: Number(item.quantity) || 0,
-      unitPrice: Number(item.unitPrice) || 0,
-    }));
+    const formattedItems: InvoiceItemData[] = items
+      .filter((item) => item.name.trim() && (Number(item.quantity) || 0) > 0)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        quantity: Number(item.quantity) || 0,
+        unitPrice: Number(item.unitPrice) || 0,
+      }));
 
     const payload: InvoicePDFPayload & { cashierName?: string; cashierId?: string } = {
-      invoiceNumber,
+      invoiceNumber: currentInvoiceNumber,
       invoiceDate,
       cashierName,
       cashierId,
@@ -350,8 +372,24 @@ export default function GenerateInvoicePage() {
     try {
       setIsSaving(true);
       await createInvoice(payload);
+
+      // Reduce stock for each item that has a product_id
+      for (const item of items) {
+        if (item.product_id && item.name.trim() && (Number(item.quantity) || 0) > 0) {
+          try {
+            await reduceProductStock(item.product_id, Number(item.quantity) || 0);
+          } catch (stockErr) {
+            console.error(`Failed to reduce stock for ${item.name}:`, stockErr);
+            // Don't fail the whole invoice if stock reduction fails
+          }
+        }
+      }
+
       generateInvoicePDF(payload);
-      alert("Invoice generated and saved successfully!");
+      alert("Invoice generated and saved successfully! Stock updated.");
+
+      // Generate new invoice number for next invoice
+      setInvoiceNumber(generateNewInvoiceNumber());
     } catch (error: any) {
       alert("Failed to save invoice: " + (error.message || "Unknown error"));
     } finally {
@@ -613,7 +651,7 @@ export default function GenerateInvoicePage() {
                             }
                             onFocus={() => {
                               if (item.name.trim().length > 0 && filteredProducts.length > 0) {
-                                setActiveItemDropdown(true);
+                                setActiveItemDropdownId(item.id || null);
                               }
                             }}
                             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-md focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
@@ -623,8 +661,8 @@ export default function GenerateInvoicePage() {
                           </span>
 
                           {/* Item Dropdown */}
-                          {activeItemDropdown && filteredProducts.length > 0 && (
-                            <div className="absolute left-0 top-full z-50 mt-1 max-h-64 w-full min-w-[200px] overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                          {activeItemDropdownId === item.id && filteredProducts.length > 0 && (
+                            <div className="absolute left-0 top-full z-[9999] mt-1 max-h-64 w-full min-w-[200px] overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
                               {filteredProducts.map((prod) => (
                                 <button
                                   key={prod.id}
@@ -693,7 +731,8 @@ export default function GenerateInvoicePage() {
             <button
               type="button"
               onClick={handleAddItem}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3.5 py-1.5 text-md font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              disabled={activeItemDropdownId !== null}
+              className={`mt-3 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3.5 py-1.5 text-md font-medium text-gray-700 transition dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 ${activeItemDropdownId !== null ? "cursor-not-allowed opacity-50" : "hover:bg-gray-50"}`}
             >
               <Plus className="h-3.5 w-3.5" />
               Add Item
