@@ -206,7 +206,12 @@ export async function reduceProductStock(
     .eq("id", productId);
 
   if (error) {
-    console.error("reduceProductStock error:", error);
+    console.error("reduceProductStock error:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
     throw error;
   }
 
