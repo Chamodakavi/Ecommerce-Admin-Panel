@@ -22,6 +22,7 @@ import {
 } from "@/functions/invoiceGenerator";
 import { createInvoice } from "@/functions/invoices";
 import { getCustomers } from "@/functions/customers";
+import { getProducts } from "@/functions/products";
 
 interface CustomerOption {
   id: string;
@@ -29,6 +30,13 @@ interface CustomerOption {
   company?: string | null;
   phone: string | null;
   email: string | null;
+}
+
+interface ProductOption {
+  id: string;
+  name: string;
+  selling_price?: number | null;
+  stock_quantity?: number | null;
 }
 
 interface FormInvoiceItem {
@@ -79,10 +87,17 @@ export default function GenerateInvoicePage() {
   const nameInputRef = useRef<HTMLDivElement>(null);
   const companyInputRef = useRef<HTMLDivElement>(null);
 
+  // Product Directory (for Item autocomplete)
+  const [allProducts, setAllProducts] = useState<ProductOption[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<ProductOption[]>([]);
+  const [activeItemDropdown, setActiveItemDropdown] = useState<boolean>(false);
+  const itemInputRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
   // Read logged-in user and fetch customers on mount
   useEffect(() => {
     fetchCustomerDirectory();
     loadActiveCashier();
+    fetchProductDirectory();
   }, []);
 
   const loadActiveCashier = () => {
@@ -128,6 +143,22 @@ export default function GenerateInvoicePage() {
     }
   };
 
+  const fetchProductDirectory = async () => {
+    try {
+      const data = await getProducts();
+      setAllProducts(
+        (data || []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          selling_price: p.selling_price ?? null,
+          stock_quantity: p.stock_quantity ?? null,
+        }))
+      );
+    } catch (err: any) {
+      console.error("Error loading product directory:", err.message);
+    }
+  };
+
   const handleFilterCustomers = (query: string, field: "name" | "company") => {
     if (field === "name") setCustomerName(query);
     if (field === "company") setCustomerCompany(query);
@@ -167,6 +198,40 @@ export default function GenerateInvoicePage() {
     setActiveDropdown(null);
   };
 
+  const handleFilterItems = (id: string | undefined, query: string) => {
+    handleItemChange(id, "name", query);
+
+    const trimmed = query.trim().toLowerCase();
+    if (trimmed.length > 0) {
+      const matches = allProducts.filter((p) =>
+        p.name.toLowerCase().includes(trimmed)
+      );
+      setFilteredProducts(matches);
+      setActiveItemDropdown(true);
+    } else {
+      setFilteredProducts([]);
+      setActiveItemDropdown(false);
+    }
+  };
+
+  const handleSelectItem = (id: string | undefined, product: ProductOption) => {
+    setItems(
+      items.map((item) => {
+        if (item.id !== id) return item;
+        return {
+          ...item,
+          name: product.name,
+          unitPrice:
+            product.selling_price !== null && product.selling_price !== undefined
+              ? product.selling_price
+              : "",
+        };
+      })
+    );
+    setFilteredProducts([]);
+    setActiveItemDropdown(false);
+  };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -177,6 +242,13 @@ export default function GenerateInvoicePage() {
 
       if (clickedOutsideName && clickedOutsideCompany) {
         setActiveDropdown(null);
+      }
+
+      const clickedOutsideItem = Object.values(itemInputRefs.current).every(
+        (ref) => !ref || !ref.contains(target)
+      );
+      if (clickedOutsideItem) {
+        setActiveItemDropdown(false);
       }
     };
 
@@ -526,15 +598,53 @@ export default function GenerateInvoicePage() {
                   {items.map((item) => (
                     <tr key={item.id}>
                       <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          placeholder="Item name / vehicle service..."
-                          value={item.name}
-                          onChange={(e) =>
-                            handleItemChange(item.id, "name", e.target.value)
-                          }
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-md focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                        />
+                        <div
+                          className="relative"
+                          ref={(el) => {
+                            if (item.id) itemInputRefs.current[item.id] = el;
+                          }}
+                        >
+                          <input
+                            type="text"
+                            placeholder="Item name / vehicle service..."
+                            value={item.name}
+                            onChange={(e) =>
+                              handleFilterItems(item.id, e.target.value)
+                            }
+                            onFocus={() => {
+                              if (item.name.trim().length > 0 && filteredProducts.length > 0) {
+                                setActiveItemDropdown(true);
+                              }
+                            }}
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-md focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                            <Search className="h-4 w-4" />
+                          </span>
+
+                          {/* Item Dropdown */}
+                          {activeItemDropdown && filteredProducts.length > 0 && (
+                            <div className="absolute left-0 top-full z-50 mt-1 max-h-64 w-full min-w-[200px] overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                              {filteredProducts.map((prod) => (
+                                <button
+                                  key={prod.id}
+                                  type="button"
+                                  onClick={() => handleSelectItem(item.id, prod)}
+                                  className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition hover:bg-blue-50 dark:hover:bg-gray-700"
+                                >
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {prod.name}
+                                  </span>
+                                  {prod.selling_price !== null && prod.selling_price !== undefined && (
+                                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                      ${Number(prod.selling_price).toFixed(2)}
+                                    </span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <input
