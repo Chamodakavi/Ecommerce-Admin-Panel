@@ -137,7 +137,6 @@ export async function updateProduct(
     .from("products")
     .update({
       ...updates,
-      updated_at: new Date().toISOString(),
     })
     .eq("id", productId)
     .select()
@@ -201,7 +200,6 @@ export async function reduceProductStock(
     .from("products")
     .update({
       stock_quantity: nextStock,
-      updated_at: new Date().toISOString(),
     })
     .eq("id", productId);
 

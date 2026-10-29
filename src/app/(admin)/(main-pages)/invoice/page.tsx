@@ -409,7 +409,7 @@ export default function GenerateInvoicePage() {
         if (item.product_id && item.name.trim() && (Number(item.quantity) || 0) > 0) {
           try {
             await reduceProductStock(item.product_id, Number(item.quantity) || 0);
-          } catch (stockErr) {
+          } catch (stockErr: any) {
             console.error(`Failed to reduce stock for ${item.name}:`, {
               message: stockErr?.message,
               code: stockErr?.code,
