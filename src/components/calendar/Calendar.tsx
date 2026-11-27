@@ -8,10 +8,10 @@ import interactionPlugin from "@fullcalendar/interaction";
 import {
   EventInput,
   DateSelectArg,
-  DateClickArg,
   EventClickArg,
   EventContentArg,
 } from "@fullcalendar/core";
+import { DateClickArg } from "@fullcalendar/interaction";
 import { useModal } from "@/hooks/useModal";
 import { Modal } from "@/components/ui/modal";
 import { createClient } from "@/utils/supabase/client";
