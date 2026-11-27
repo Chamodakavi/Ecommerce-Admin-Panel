@@ -346,6 +346,7 @@ export default function GenerateInvoicePage() {
       .filter((item) => item.name.trim() && (Number(item.quantity) || 0) > 0)
       .map((item) => ({
         id: item.id,
+        product_id: item.product_id || null,
         name: item.name,
         quantity: Number(item.quantity) || 0,
         unitPrice: Number(item.unitPrice) || 0,
