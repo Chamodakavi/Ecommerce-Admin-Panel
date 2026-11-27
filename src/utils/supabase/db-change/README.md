@@ -54,7 +54,7 @@ After applying these changes:
 | id | UUID | Primary key |
 | invoice_id | UUID | Reference to invoices table |
 | invoice_number | VARCHAR | Invoice number for display |
-| product_id | UUID | Reference to products table |
+| product_id | BIGINT | Reference to products table (products.id is BIGINT) |
 | product_name | VARCHAR | Product name (cached for display) |
 | quantity_sold | INTEGER | Quantity sold in this invoice |
 | unit_selling_price | DECIMAL(12,2) | Selling price per unit |
@@ -64,6 +64,8 @@ After applying these changes:
 | net_profit | DECIMAL(12,2) | total_revenue - total_cost |
 | sold_at | TIMESTAMPTZ | When the sale occurred |
 | created_at | TIMESTAMPTZ | Record creation time |
+
+**Note:** The `products` table uses `BIGINT` for the `id` column, so `product_id` in `product_profit_log` is also `BIGINT`. The `invoices` table uses `UUID` for `id`.
 
 ### New Views
 - `yearly_product_profit_summary` - Aggregated by year

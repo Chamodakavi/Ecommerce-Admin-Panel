@@ -2,11 +2,12 @@
 -- Run this in your Supabase SQL Editor
 
 -- 1. Create product_profit_log table to track profit per invoice item
+-- Note: products.id is BIGINT, invoices.id is UUID
 CREATE TABLE IF NOT EXISTS public.product_profit_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     invoice_id UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
     invoice_number VARCHAR(100) NOT NULL,
-    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+    product_id BIGINT NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     product_name VARCHAR(255) NOT NULL,
     quantity_sold INTEGER NOT NULL,
     unit_selling_price DECIMAL(12,2) NOT NULL,
@@ -83,7 +84,7 @@ CREATE OR REPLACE FUNCTION public.log_invoice_product_profit(
 ) RETURNS VOID AS $$
 DECLARE
     item_record JSONB;
-    v_product_id UUID;
+    v_product_id BIGINT;
     v_product_name VARCHAR;
     v_quantity INTEGER;
     v_unit_selling_price DECIMAL(12,2);
@@ -96,7 +97,7 @@ BEGIN
     FOR item_record IN SELECT * FROM jsonb_array_elements(p_items)
     LOOP
         -- Extract item data
-        v_product_id := (item_record ->> 'product_id')::UUID;
+        v_product_id := (item_record ->> 'product_id')::BIGINT;
         v_product_name := item_record ->> 'name';
         v_quantity := (item_record ->> 'quantity')::INTEGER;
         v_unit_selling_price := (item_record ->> 'unitPrice')::DECIMAL(12,2);

@@ -1,13 +1,14 @@
 -- Backfill Existing Invoice Data into Product Profit Log
 -- Run this AFTER creating the product_profit_log table and function
 -- This will populate profit data for all existing invoices
+-- Note: products.id is BIGINT
 
 -- Backfill profit data for all existing invoices
 DO $$
 DECLARE
     inv_record RECORD;
     item_record JSONB;
-    v_product_id UUID;
+    v_product_id BIGINT;
     v_product_name VARCHAR;
     v_quantity INTEGER;
     v_unit_selling_price DECIMAL(12,2);
@@ -27,7 +28,7 @@ BEGIN
         FOR item_record IN SELECT * FROM jsonb_array_elements(inv_record.items)
         LOOP
             -- Extract item data
-            v_product_id := (item_record ->> 'product_id')::UUID;
+            v_product_id := (item_record ->> 'product_id')::BIGINT;
             v_product_name := item_record ->> 'name';
             v_quantity := (item_record ->> 'quantity')::INTEGER;
             v_unit_selling_price := (item_record ->> 'unitPrice')::DECIMAL(12,2);
