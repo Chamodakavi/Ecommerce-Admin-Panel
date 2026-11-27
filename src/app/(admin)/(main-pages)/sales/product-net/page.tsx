@@ -54,6 +54,26 @@ interface MonthProfitSummary {
   invoices: InvoiceRecord[];
 }
 
+interface YearlySummary {
+  year: number;
+  total_product_revenue: number;
+  total_product_cost: number;
+  total_net_profit: number;
+  total_invoices: number;
+  total_items_sold: number;
+}
+
+interface MonthlySummary {
+  year: number;
+  month: number;
+  month_name: string;
+  total_product_revenue: number;
+  total_product_cost: number;
+  total_net_profit: number;
+  total_invoices: number;
+  total_items_sold: number;
+}
+
 export default function ProductNetProfitPage() {
   const currentYear = new Date().getFullYear();
   const [loading, setLoading] = useState(true);
@@ -66,6 +86,8 @@ export default function ProductNetProfitPage() {
     currentYear + 1,
   ]);
   const [isOwner, setIsOwner] = useState(false);
+  const [yearlySummary, setYearlySummary] = useState<YearlySummary | null>(null);
+  const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary[]>([]);
 
   // Modal State
   const [selectedMonthModal, setSelectedMonthModal] = useState<MonthProfitSummary | null>(null);
@@ -111,6 +133,33 @@ export default function ProductNetProfitPage() {
     try {
       setLoading(true);
 
+      // Fetch yearly summary from the new view
+      const { data: yearlyData, error: yearlyError } = await supabase
+        .from("yearly_product_profit_summary")
+        .select("*")
+        .eq("year", selectedYear)
+        .single();
+
+      if (yearlyError && yearlyError.code !== "PGRST116") {
+        console.error("Error fetching yearly summary:", yearlyError.message);
+      } else if (yearlyData) {
+        setYearlySummary(yearlyData as YearlySummary);
+      }
+
+      // Fetch monthly summaries from the new view
+      const { data: monthlyData, error: monthlyError } = await supabase
+        .from("monthly_product_profit_summary")
+        .select("*")
+        .eq("year", selectedYear)
+        .order("month", { ascending: true });
+
+      if (monthlyError) {
+        console.error("Error fetching monthly summaries:", monthlyError.message);
+      } else if (monthlyData) {
+        setMonthlySummaries(monthlyData as MonthlySummary[]);
+      }
+
+      // Fetch detailed invoice data for the modal (still need client-side for invoice details)
       const startOfYear = `${selectedYear}-01-01T00:00:00`;
       const endOfYear = `${selectedYear}-12-31T23:59:59.999`;
 
@@ -183,9 +232,21 @@ export default function ProductNetProfitPage() {
     }
   };
 
-  const yearlyNetProfit = useMemo(() => data.reduce((sum, m) => sum + m.totalNetProfit, 0), [data]);
-  const yearlyProductRevenue = useMemo(() => data.reduce((sum, m) => sum + m.productRevenue, 0), [data]);
-  const yearlyProductCost = useMemo(() => data.reduce((sum, m) => sum + m.productCost, 0), [data]);
+  // Use database view data if available, otherwise fall back to client-side calculation
+  const yearlyNetProfit = useMemo(() => {
+    if (yearlySummary) return yearlySummary.total_net_profit;
+    return data.reduce((sum, m) => sum + m.totalNetProfit, 0);
+  }, [data, yearlySummary]);
+
+  const yearlyProductRevenue = useMemo(() => {
+    if (yearlySummary) return yearlySummary.total_product_revenue;
+    return data.reduce((sum, m) => sum + m.productRevenue, 0);
+  }, [data, yearlySummary]);
+
+  const yearlyProductCost = useMemo(() => {
+    if (yearlySummary) return yearlySummary.total_product_cost;
+    return data.reduce((sum, m) => sum + m.productCost, 0);
+  }, [data, yearlySummary]);
 
   if (!isOwner) {
     return (
@@ -261,45 +322,54 @@ export default function ProductNetProfitPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {data.map((month) => (
-            <div
-              key={month.monthIndex}
-              onClick={() => setSelectedMonthModal(month)}
-              className={`cursor-pointer rounded-2xl border bg-white p-5 shadow-sm transition hover:border-emerald-400 hover:shadow-lg dark:bg-gray-900 ${
-                month.productRevenue > 0
-                  ? "border-gray-200 dark:border-gray-800"
-                  : "border-dashed border-gray-200 opacity-60 dark:border-gray-800"
-              }`}
-            >
-              <div className="flex items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-800">
-                <div className="flex items-center gap-2">
-                  <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-900/30">
-                    <Calendar className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          {data.map((month) => {
+            // Merge with database view data if available
+            const dbMonth = monthlySummaries.find((m) => m.month === month.monthIndex + 1);
+            const displayProfit = dbMonth ? dbMonth.total_net_profit : month.totalNetProfit;
+            const displayRevenue = dbMonth ? dbMonth.total_product_revenue : month.productRevenue;
+            const displayCost = dbMonth ? dbMonth.total_product_cost : month.productCost;
+            const displayInvoiceCount = dbMonth ? dbMonth.total_invoices : month.invoiceCount;
+
+            return (
+              <div
+                key={month.monthIndex}
+                onClick={() => setSelectedMonthModal(month)}
+                className={`cursor-pointer rounded-2xl border bg-white p-5 shadow-sm transition hover:border-emerald-400 hover:shadow-lg dark:bg-gray-900 ${
+                  displayRevenue > 0
+                    ? "border-gray-200 dark:border-gray-800"
+                    : "border-dashed border-gray-200 opacity-60 dark:border-gray-800"
+                }`}
+              >
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-800">
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-900/30">
+                      <Calendar className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <h3 className="text-base font-bold text-gray-900 dark:text-white">{month.monthKey}</h3>
                   </div>
-                  <h3 className="text-base font-bold text-gray-900 dark:text-white">{month.monthKey}</h3>
+                  <span className="text-xs font-semibold text-gray-400">{displayInvoiceCount} invoices</span>
                 </div>
-                <span className="text-xs font-semibold text-gray-400">{month.invoiceCount} invoices</span>
-              </div>
 
-              <div className="mt-4">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Product Net Profit</p>
-                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                  ${month.totalNetProfit.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="mt-4">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Product Net Profit</p>
+                  <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                    ${displayProfit.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
                 </div>
-              </div>
 
-              <div className="mt-4 space-y-1.5 rounded-xl bg-gray-50 p-3 text-xs dark:bg-gray-800/50">
-                <div className="flex justify-between text-gray-600 dark:text-gray-300">
-                  <span>Product Sales:</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">${month.productRevenue.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-gray-600 dark:text-gray-300">
-                  <span>Product Cost:</span>
-                  <span className="font-semibold text-red-600 dark:text-red-400">${month.productCost.toFixed(2)}</span>
+                <div className="mt-4 space-y-1.5 rounded-xl bg-gray-50 p-3 text-xs dark:bg-gray-800/50">
+                  <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                    <span>Product Sales:</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">${displayRevenue.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                    <span>Product Cost:</span>
+                    <span className="font-semibold text-red-600 dark:text-red-400">${displayCost.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

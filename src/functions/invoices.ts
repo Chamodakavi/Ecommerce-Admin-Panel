@@ -17,6 +17,7 @@ export interface InvoiceRecord extends InvoicePayloadWithCashier {
 
 /**
  * Save a newly generated invoice to Supabase with Cashier tracking
+ * Also logs product profit data for items linked to products
  */
 export async function createInvoice(invoiceData: InvoicePayloadWithCashier) {
   const {
@@ -66,6 +67,25 @@ export async function createInvoice(invoiceData: InvoicePayloadWithCashier) {
   if (error) {
     console.error("Error creating invoice:", error.message);
     throw error;
+  }
+
+  // Log product profit for items that have product_id
+  if (data && items && items.length > 0) {
+    try {
+      const { error: profitError } = await supabase.rpc("log_invoice_product_profit", {
+        p_invoice_id: data.id,
+        p_invoice_number: invoiceNumber,
+        p_items: items,
+        p_sold_at: new Date().toISOString(),
+      });
+
+      if (profitError) {
+        console.error("Error logging product profit:", profitError.message);
+        // Don't throw error here - invoice creation succeeded, profit logging is secondary
+      }
+    } catch (profitErr: any) {
+      console.error("Exception logging product profit:", profitErr.message);
+    }
   }
 
   return data;
