@@ -634,6 +634,70 @@ span.flatpickr-weekday,
   @apply min-h-screen;
 }
 
+/* Responsive calendar: fit into mobile screen without scrollbars */
+@media (max-width: 640px) {
+  .custom-calendar {
+    @apply overflow-hidden;
+  }
+
+  /* Keep calendar height bounded to viewport */
+  .fc .fc-view-harness,
+  .fc .fc-view,
+  .fc-daygrid-view,
+  .fc-scroller,
+  .fc-scroller > .fc-daygrid-body,
+  .fc-body {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: hidden !important;
+  }
+
+  .fc .fc-daygrid-body-frame {
+    overflow: hidden !important;
+  }
+
+  /* Compact day cells */
+  .fc-daygrid-day {
+    min-height: 55px !important;
+    height: 55px !important;
+    font-size: 11px;
+  }
+
+  /* Smaller toolbar fonts & buttons */
+  .fc-toolbar-title {
+    @apply text-base;
+  }
+
+  .fc-toolbar .fc-toolbar-chunk button,
+  .fc .fc-button {
+    @apply text-xs px-2 py-1.5 gap-1;
+  }
+
+  .fc .fc-button-group > .fc-button {
+    font-size: 10px !important;
+    padding: 0 4px !important;
+  }
+
+  /* Reduce header chunks spacing */
+  .fc-header-toolbar .fc-toolbar-chunk {
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  /* Day numbers and weekday headers smaller */
+  .fc-col-header-cell,
+  .fc-daygrid-day-number {
+    font-size: 11px !important;
+    padding: 4px !important;
+  }
+}
+
+@media (min-width: 641px) {
+  .custom-calendar {
+    overflow: hidden;
+  }
+}
+
 .input-date-icon::-webkit-inner-spin-button,
 .input-date-icon::-webkit-calendar-picker-indicator {
   opacity: 0;
