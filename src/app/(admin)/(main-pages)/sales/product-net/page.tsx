@@ -176,7 +176,18 @@ export default function ProductNetProfitPage() {
       if (invErr) throw invErr;
       if (prodErr) throw prodErr;
 
-      const productMap = new Map((products || []).map((p) => [p.id, p]));
+      // Normalize IDs to strings so BIGINT (number) ids from `products`
+      // still match string/number `product_id` stored inside invoice items.
+      const productMap = new Map(
+        (products || []).map((p) => [String(p.id), p])
+      );
+      // Secondary lookup by normalized product name, for legacy invoices
+      // that were saved without a product_id in their items.
+      const productByName = new Map(
+        (products || [])
+          .filter((p) => p && p.name)
+          .map((p) => [String(p.name).trim().toLowerCase(), p])
+      );
 
       const monthBuckets: MonthProfitSummary[] = Array.from({ length: 12 }, (_, i) => ({
         monthKey: new Date(selectedYear, i, 1).toLocaleString("default", { month: "long" }),
@@ -199,21 +210,33 @@ export default function ProductNetProfitPage() {
         const items = Array.isArray(inv.items) ? inv.items : [];
 
         items.forEach((item: InvoiceItem) => {
-          if (item.product_id) {
-            const product = productMap.get(item.product_id);
-            if (product && product.cost_price !== null) {
-              const qty = Number(item.quantity) || 0;
-              const sellPrice = Number(item.unitPrice) || 0;
-              const costPrice = Number(product.cost_price) || 0;
+          // Resolve the product: first by product_id, then fall back to
+          // matching the item name against the products catalog.
+          let product =
+            item.product_id != null
+              ? productMap.get(String(item.product_id))
+              : undefined;
 
-              const itemRev = sellPrice * qty;
-              const itemCost = costPrice * qty;
-              const itemProfit = (sellPrice - costPrice) * qty;
+          if (!product && item.name) {
+            product = productByName.get(String(item.name).trim().toLowerCase());
+          }
 
-              monthRev += itemRev;
-              monthCost += itemCost;
-              monthProfit += itemProfit;
-            }
+          if (
+            product &&
+            product.cost_price !== null &&
+            product.cost_price !== undefined
+          ) {
+            const qty = Number(item.quantity) || 0;
+            const sellPrice = Number(item.unitPrice) || 0;
+            const costPrice = Number(product.cost_price) || 0;
+
+            const itemRev = sellPrice * qty;
+            const itemCost = costPrice * qty;
+            const itemProfit = (sellPrice - costPrice) * qty;
+
+            monthRev += itemRev;
+            monthCost += itemCost;
+            monthProfit += itemProfit;
           }
         });
 
