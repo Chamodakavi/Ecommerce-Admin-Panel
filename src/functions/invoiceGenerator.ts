@@ -3,6 +3,7 @@ import autoTable from "jspdf-autotable";
 
 export interface InvoiceItemData {
   id?: string;
+  product_id?: string | null;
   name: string;
   quantity: number;
   unitPrice: number;

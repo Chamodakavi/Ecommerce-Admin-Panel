@@ -1,0 +1,11 @@
+#!/bin/sh
+echo "🔍 Running tests before push..."
+npm test
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Tests failed. Push blocked."
+  echo "Please fix the failing tests and try again."
+  exit 1
+fi
+echo "✅ All tests passed. Proceeding with push..."
+exit 0

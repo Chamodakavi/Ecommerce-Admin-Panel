@@ -137,7 +137,6 @@ export async function updateProduct(
     .from("products")
     .update({
       ...updates,
-      updated_at: new Date().toISOString(),
     })
     .eq("id", productId)
     .select()
@@ -168,4 +167,51 @@ export async function deleteProduct(
   }
 
   return true;
+}
+
+/**
+ * Reduce a product's stock quantity by a given amount (used when an invoice is issued)
+ * Throws an error if there's insufficient stock
+ */
+export async function reduceProductStock(
+  productId: string,
+  quantity: number
+) {
+  const { data: current, error: fetchError } = await supabase
+    .from("products")
+    .select("stock_quantity, name")
+    .eq("id", productId)
+    .single();
+
+  if (fetchError || !current) {
+    console.error("reduceProductStock: unable to load current stock:", fetchError);
+    throw fetchError || new Error("Product not found");
+  }
+
+  const availableStock = current.stock_quantity || 0;
+  if (availableStock < quantity) {
+    throw new Error(
+      `Insufficient stock for ${current.name || "product"}. Only ${availableStock} available, requested ${quantity}.`
+    );
+  }
+
+  const nextStock = availableStock - quantity;
+  const { error } = await supabase
+    .from("products")
+    .update({
+      stock_quantity: nextStock,
+    })
+    .eq("id", productId);
+
+  if (error) {
+    console.error("reduceProductStock error:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw error;
+  }
+
+  return nextStock;
 }

@@ -27,6 +27,7 @@ import {
   OrderStatus,
 } from "@/functions/orders";
 import { createInvoice } from "@/functions/invoices";
+import { isCurrentUserOwner } from "@/functions/auth";
 
 export default function MyOrdersPage() {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
@@ -37,6 +38,12 @@ export default function MyOrdersPage() {
 
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<boolean>(false);
+
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    setIsOwner(isCurrentUserOwner());
+  }, []);
 
   useEffect(() => {
     fetchOrders();
@@ -538,15 +545,17 @@ export default function MyOrdersPage() {
 
             {/* Modal Actions */}
             <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-gray-800">
-              <button
-                type="button"
-                onClick={() => handleDeleteOrder(selectedOrder.id)}
-                disabled={isUpdatingStatus}
-                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete Order
-              </button>
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteOrder(selectedOrder.id)}
+                  disabled={isUpdatingStatus}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete Order
+                </button>
+              )}
 
               <button
                 type="button"

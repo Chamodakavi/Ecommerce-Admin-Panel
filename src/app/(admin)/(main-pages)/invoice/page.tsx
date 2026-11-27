@@ -22,6 +22,8 @@ import {
 } from "@/functions/invoiceGenerator";
 import { createInvoice } from "@/functions/invoices";
 import { getCustomers } from "@/functions/customers";
+import { getProducts, reduceProductStock } from "@/functions/products";
+import { createClient } from "@/utils/supabase/client";
 
 interface CustomerOption {
   id: string;
@@ -31,8 +33,16 @@ interface CustomerOption {
   email: string | null;
 }
 
+interface ProductOption {
+  id: string;
+  name: string;
+  selling_price?: number | null;
+  stock_quantity?: number | null;
+}
+
 interface FormInvoiceItem {
   id?: string;
+  product_id?: string | null;
   name: string;
   quantity: number | "";
   unitPrice: number | "";
@@ -79,10 +89,17 @@ export default function GenerateInvoicePage() {
   const nameInputRef = useRef<HTMLDivElement>(null);
   const companyInputRef = useRef<HTMLDivElement>(null);
 
+  // Product Directory (for Item autocomplete)
+  const [allProducts, setAllProducts] = useState<ProductOption[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<ProductOption[]>([]);
+  const [activeItemDropdownId, setActiveItemDropdownId] = useState<string | null>(null);
+  const itemInputRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
   // Read logged-in user and fetch customers on mount
   useEffect(() => {
     fetchCustomerDirectory();
     loadActiveCashier();
+    fetchProductDirectory();
   }, []);
 
   const loadActiveCashier = () => {
@@ -128,6 +145,22 @@ export default function GenerateInvoicePage() {
     }
   };
 
+  const fetchProductDirectory = async () => {
+    try {
+      const data = await getProducts();
+      setAllProducts(
+        (data || []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          selling_price: p.selling_price ?? null,
+          stock_quantity: p.stock_quantity ?? null,
+        }))
+      );
+    } catch (err: any) {
+      console.error("Error loading product directory:", err.message);
+    }
+  };
+
   const handleFilterCustomers = (query: string, field: "name" | "company") => {
     if (field === "name") setCustomerName(query);
     if (field === "company") setCustomerCompany(query);
@@ -167,6 +200,41 @@ export default function GenerateInvoicePage() {
     setActiveDropdown(null);
   };
 
+  const handleFilterItems = (id: string | undefined, query: string) => {
+    handleItemChange(id, "name", query);
+
+    const trimmed = query.trim().toLowerCase();
+    if (trimmed.length > 0) {
+      const matches = allProducts.filter((p) =>
+        p.name.toLowerCase().includes(trimmed)
+      );
+      setFilteredProducts(matches);
+      setActiveItemDropdownId(id || null);
+    } else {
+      setFilteredProducts([]);
+      setActiveItemDropdownId(null);
+    }
+  };
+
+  const handleSelectItem = (id: string | undefined, product: ProductOption) => {
+    setItems(
+      items.map((item) => {
+        if (item.id !== id) return item;
+        return {
+          ...item,
+          product_id: product.id,
+          name: product.name,
+          unitPrice:
+            product.selling_price !== null && product.selling_price !== undefined
+              ? product.selling_price
+              : "",
+        };
+      })
+    );
+    setFilteredProducts([]);
+    setActiveItemDropdownId(null);
+  };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -177,6 +245,13 @@ export default function GenerateInvoicePage() {
 
       if (clickedOutsideName && clickedOutsideCompany) {
         setActiveDropdown(null);
+      }
+
+      const clickedOutsideItem = Object.values(itemInputRefs.current).every(
+        (ref) => !ref || !ref.contains(target)
+      );
+      if (clickedOutsideItem) {
+        setActiveItemDropdownId(null);
       }
     };
 
@@ -206,8 +281,9 @@ export default function GenerateInvoicePage() {
   const handleAddItem = () => {
     setItems([
       ...items,
-      { id: Date.now().toString(), name: "", quantity: "", unitPrice: "" },
+      { id: Date.now().toString(), product_id: null, name: "", quantity: "", unitPrice: "" },
     ]);
+    setActiveItemDropdownId(null);
   };
 
   const handleRemoveItem = (id?: string) => {
@@ -239,25 +315,45 @@ export default function GenerateInvoicePage() {
     );
   };
 
+  const generateNewInvoiceNumber = () => {
+    const now = new Date();
+    const timestamp = now.getTime().toString().slice(-8);
+    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return `INV-${timestamp}-${random}`;
+  };
+
   const handleGenerateAndSave = async () => {
     if (!customerName.trim()) {
       alert("Please enter the customer's name before proceeding.");
       return;
     }
 
+    // Validate at least one item has name and quantity
+    const hasValidItem = items.some(
+      (item) => item.name.trim() && (Number(item.quantity) || 0) > 0
+    );
+    if (!hasValidItem) {
+      alert("Please add at least one item with name and quantity.");
+      return;
+    }
+
+    const currentInvoiceNumber = generateNewInvoiceNumber();
     const formattedCustomerName = customerCompany.trim()
       ? `${customerName.trim()} (${customerCompany.trim()})`
       : customerName.trim();
 
-    const formattedItems: InvoiceItemData[] = items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      quantity: Number(item.quantity) || 0,
-      unitPrice: Number(item.unitPrice) || 0,
-    }));
+    const formattedItems: InvoiceItemData[] = items
+      .filter((item) => item.name.trim() && (Number(item.quantity) || 0) > 0)
+      .map((item) => ({
+        id: item.id,
+        product_id: item.product_id || null,
+        name: item.name,
+        quantity: Number(item.quantity) || 0,
+        unitPrice: Number(item.unitPrice) || 0,
+      }));
 
     const payload: InvoicePDFPayload & { cashierName?: string; cashierId?: string } = {
-      invoiceNumber,
+      invoiceNumber: currentInvoiceNumber,
       invoiceDate,
       cashierName,
       cashierId,
@@ -275,11 +371,63 @@ export default function GenerateInvoicePage() {
       remainingBalance,
     };
 
+    // Create supabase client for stock checks
+    const supabase = createClient();
+
     try {
       setIsSaving(true);
+
+      // Pre-validate stock for all items with product_id before creating invoice
+      const stockErrors: string[] = [];
+      for (const item of items) {
+        if (item.product_id && item.name.trim() && (Number(item.quantity) || 0) > 0) {
+          const { data: product, error: stockCheckError } = await supabase
+            .from("products")
+            .select("stock_quantity, name")
+            .eq("id", item.product_id)
+            .single();
+          if (stockCheckError || !product) {
+            stockErrors.push(`${item.name}: Product not found`);
+          } else {
+            const availableStock = product.stock_quantity || 0;
+            const requestedQty = Number(item.quantity) || 0;
+            if (availableStock < requestedQty) {
+              stockErrors.push(`${product.name}: Only ${availableStock} available, requested ${requestedQty}`);
+            }
+          }
+        }
+      }
+
+      if (stockErrors.length > 0) {
+        alert("Cannot create invoice - Insufficient stock:\n" + stockErrors.join("\n"));
+        return;
+      }
+
       await createInvoice(payload);
+
+      // Reduce stock for each item that has a product_id
+      for (const item of items) {
+        if (item.product_id && item.name.trim() && (Number(item.quantity) || 0) > 0) {
+          try {
+            await reduceProductStock(item.product_id, Number(item.quantity) || 0);
+          } catch (stockErr: any) {
+            console.error(`Failed to reduce stock for ${item.name}:`, {
+              message: stockErr?.message,
+              code: stockErr?.code,
+              details: stockErr?.details,
+              hint: stockErr?.hint,
+              name: stockErr?.name,
+            });
+            // This shouldn't happen since we pre-validated, but log if it does
+          }
+        }
+      }
+
       generateInvoicePDF(payload);
-      alert("Invoice generated and saved successfully!");
+      alert("Invoice generated and saved successfully! Stock updated.");
+
+      // Generate new invoice number for next invoice
+      setInvoiceNumber(generateNewInvoiceNumber());
     } catch (error: any) {
       alert("Failed to save invoice: " + (error.message || "Unknown error"));
     } finally {
@@ -526,15 +674,53 @@ export default function GenerateInvoicePage() {
                   {items.map((item) => (
                     <tr key={item.id}>
                       <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          placeholder="Item name / vehicle service..."
-                          value={item.name}
-                          onChange={(e) =>
-                            handleItemChange(item.id, "name", e.target.value)
-                          }
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-md focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                        />
+                        <div
+                          className="relative"
+                          ref={(el) => {
+                            if (item.id) itemInputRefs.current[item.id] = el;
+                          }}
+                        >
+                          <input
+                            type="text"
+                            placeholder="Item name / vehicle service..."
+                            value={item.name}
+                            onChange={(e) =>
+                              handleFilterItems(item.id, e.target.value)
+                            }
+                            onFocus={() => {
+                              if (item.name.trim().length > 0 && filteredProducts.length > 0) {
+                                setActiveItemDropdownId(item.id || null);
+                              }
+                            }}
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-md focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                            <Search className="h-4 w-4" />
+                          </span>
+
+                          {/* Item Dropdown */}
+                          {activeItemDropdownId === item.id && filteredProducts.length > 0 && (
+                            <div className="absolute left-0 top-full z-[9999] mt-1 max-h-64 w-full min-w-[200px] overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                              {filteredProducts.map((prod) => (
+                                <button
+                                  key={prod.id}
+                                  type="button"
+                                  onClick={() => handleSelectItem(item.id, prod)}
+                                  className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition hover:bg-blue-50 dark:hover:bg-gray-700"
+                                >
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {prod.name}
+                                  </span>
+                                  {prod.selling_price !== null && prod.selling_price !== undefined && (
+                                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                      ${Number(prod.selling_price).toFixed(2)}
+                                    </span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <input
@@ -583,7 +769,8 @@ export default function GenerateInvoicePage() {
             <button
               type="button"
               onClick={handleAddItem}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3.5 py-1.5 text-md font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              disabled={activeItemDropdownId !== null}
+              className={`mt-3 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3.5 py-1.5 text-md font-medium text-gray-700 transition dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 ${activeItemDropdownId !== null ? "cursor-not-allowed opacity-50" : "hover:bg-gray-50"}`}
             >
               <Plus className="h-3.5 w-3.5" />
               Add Item

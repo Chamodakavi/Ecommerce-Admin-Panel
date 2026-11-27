@@ -59,6 +59,7 @@ const allNavItems: NavItem[] = [
     subItems: [
       { name: "Daily Sales Analytics", path: "/sales/daily", pro: false },
       { name: "Monthly Sales Analytics", path: "/sales/monthly", pro: false },
+      { name: "Product Net Profit", path: "/sales/product-net", new: true },
     ],
   },
   {
