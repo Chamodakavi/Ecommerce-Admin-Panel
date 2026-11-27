@@ -85,7 +85,7 @@ $$;
 -- Verify the backfill
 SELECT 
     'Total profit log entries' as metric,
-    COUNT(*) as value
+    COUNT(*)::TEXT as value
 FROM public.product_profit_log
 UNION ALL
 SELECT 
